@@ -1,0 +1,233 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+/// GPSR Role Types - roles that an entity can fulfill
+enum RoleType {
+  MANUFACTURER        // Producent
+  IMPORTER            // Importer
+  RESPONSIBLE_PERSON  // Osoba odpowiedzialna
+  AUTHORIZED_REP      // Upoważniony przedstawiciel
+  DISTRIBUTOR         // Dystrybutor
+  FULFILLMENT_PROVIDER // Dostawca usług fulfillment
+}
+
+/// Source Types - origin of data
+enum SourceType {
+  COMMUNITY           // Dane dodane społecznościowo
+  PRIMARY_SOURCE      // Dane od podmiotu pierwotnego
+  OFFICIAL_REGISTRY   // Dane z rejestru publicznego
+  PRODUCT_LABEL       // Dane z etykiety produktu
+  WEBSITE             // Dane ze strony internetowej podmiotu
+  API_IMPORT          // Dane zaimportowane przez API
+  MANUAL_ENTRY        // Dane wprowadzone ręcznie
+}
+
+/// Verification Status - informational only, not legal certification
+enum VerificationStatusType {
+  UNVERIFIED              // Dane dodane, niezweryfikowane
+  COMMUNITY_CONFIRMED     // Dane potwierdzone społecznościowo
+  PRIMARY_CONFIRMED       // Dane potwierdzone źródłem pierwotnym
+  HISTORICAL              // Dane historyczne / wymagające aktualizacji
+  DISPUTED                // Dane kwestionowane
+  OUTDATED                // Dane oznaczone jako nieaktualne
+}
+
+// ============================================================================
+// CORE MODELS
+// ============================================================================
+
+/// Entity - Core business entity in the GPSR context
+/// Represents a single business entity with normalized data for search/integration
+model Entity {
+  id                String    @id @default(uuid())
+  
+  // Normalized data for search and integration
+  normalizedName    String    // Znormalizowana nazwa
+  normalizedAddress String?   // Znormalizowany adres
+  normalizedCity    String?   // Miasto
+  normalizedCountry String    // Kod kraju (ISO 3166-1 alpha-2)
+  normalizedVatId   String?   // Znormalizowany numer VAT
+  normalizedEmail   String?   // Email kontaktowy
+  normalizedPhone   String?   // Telefon kontaktowy
+  normalizedWebsite String?   // Strona internetowa
+  
+  // Metadata
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relations
+  roles             EntityRole[]
+  versions          EntityVersion[]
+  
+  @@index([normalizedName])
+  @@index([normalizedCountry])
+  @@index([normalizedVatId])
+  @@index([isActive])
+}
+
+/// EntityRole - Contextual role of an entity in GPSR terms
+/// An entity can have multiple roles in different market contexts
+model EntityRole {
+  id            String    @id @default(uuid())
+  
+  // Foreign key
+  entityId      String
+  entity        Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  
+  // Role definition
+  roleType      RoleType
+  marketContext String?   // e.g., "EU", "PL", specific product category
+  productScope  String?   // Optional: specific products/categories this role applies to
+  
+  // Validity period
+  validFrom     DateTime  @default(now())
+  validTo       DateTime? // Null means currently valid
+  
+  // Metadata
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@index([entityId])
+  @@index([roleType])
+  @@index([marketContext])
+  @@index([isActive])
+}
+
+/// Source - Origin of data, tracking where information came from
+/// Each piece of information must have a traceable source
+model Source {
+  id               String     @id @default(uuid())
+  
+  // Source identification
+  sourceType       SourceType
+  sourceIdentifier String?    // e.g., URL, registry ID, document reference
+  description      String?    // Human-readable description of the source
+  
+  // Source metadata
+  sourceUrl        String?    // URL if applicable
+  sourceName       String?    // Name of the source organization/system
+  
+  // Trust level (informational)
+  trustNote        String?    // Note about reliability (not a guarantee)
+  
+  // Metadata
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  
+  // Relations
+  versions         EntityVersion[]
+  
+  @@index([sourceType])
+}
+
+/// EntityVersion - Versioned snapshot of entity data
+/// Preserves both original and normalized data with full history
+model EntityVersion {
+  id              String    @id @default(uuid())
+  
+  // Foreign keys
+  entityId        String
+  entity          Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  sourceId        String
+  source          Source    @relation(fields: [sourceId], references: [id])
+  
+  // Original data (preserved exactly as received)
+  originalData    Json      // Raw data as received from source
+  
+  // Normalized data snapshot (at time of capture)
+  normalizedData  Json      // Normalized version at this point in time
+  
+  // Version metadata
+  versionNumber   Int       @default(autoincrement())
+  capturedAt      DateTime  @default(now()) // When data was captured
+  isCurrent       Boolean   @default(true)  // Is this the current version?
+  
+  // Change tracking
+  changeNote      String?   // Description of what changed
+  changedBy       String?   // Identifier of who made the change
+  
+  // Metadata
+  createdAt       DateTime  @default(now())
+  
+  // Relations
+  verifications   VerificationRecord[]
+  
+  @@index([entityId])
+  @@index([sourceId])
+  @@index([isCurrent])
+  @@index([capturedAt])
+}
+
+/// VerificationRecord - Verification status history
+/// Informational only - not a legal certification or guarantee
+model VerificationRecord {
+  id              String                  @id @default(uuid())
+  
+  // Foreign key
+  versionId       String
+  version         EntityVersion           @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  
+  // Verification details
+  status          VerificationStatusType
+  verifiedBy      String?                 // Identifier of verifier (user/system)
+  verificationMethod String?              // How was this verified?
+  
+  // Notes and evidence
+  notes           String?                 // Additional notes
+  evidenceUrl     String?                 // Link to supporting evidence
+  
+  // Metadata
+  verifiedAt      DateTime                @default(now())
+  expiresAt       DateTime?               // When does this verification expire?
+  
+  @@index([versionId])
+  @@index([status])
+  @@index([verifiedAt])
+}
+
+// ============================================================================
+// AUDIT AND SYSTEM TABLES
+// ============================================================================
+
+/// AuditLog - System-wide audit trail
+/// Tracks all significant operations for transparency
+model AuditLog {
+  id          String    @id @default(uuid())
+  
+  // What happened
+  action      String    // e.g., "CREATE", "UPDATE", "VERIFY"
+  entityType  String    // e.g., "Entity", "EntityRole", "Source"
+  entityId    String    // ID of the affected entity
+  
+  // Change details
+  previousData Json?    // State before change
+  newData      Json?    // State after change
+  
+  // Who/what made the change
+  performedBy  String?  // User or system identifier
+  ipAddress    String?  // Request IP if from API
+  userAgent    String?  // Request user agent if from API
+  
+  // Metadata
+  createdAt    DateTime @default(now())
+  
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([performedBy])
+  @@index([createdAt])
+}
