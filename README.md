@@ -1,4 +1,4 @@
-# OpenGPSR Backend
+# OpenGPSR
 
 Central data layer for GPSR (General Product Safety Regulation) entity management.
 
