@@ -1,5 +1,5 @@
 import prisma from '../config/database';
-import { Brand, BrandLink, BrandVersion, Prisma, BrandLinkType, MarketContext } from '@prisma/client';
+import { Brand, BrandLink, BrandVersion, Prisma, BrandLinkType, MarketContext, BrandElectronicContact } from '@prisma/client';
 import {
     CreateBrandInput,
     UpdateBrandInput,
@@ -8,17 +8,20 @@ import {
 } from '../schemas';
 import { sourceService } from './sourceService';
 import { NotFoundError } from '../utils/errors';
+import { withP2002Retry } from '../utils/prismaRetry';
 import { config } from '../config';
 
 // Types
 export type BrandWithRelations = Brand & {
     entityLinks: (BrandLink & { entity: { id: string; normalizedName: string; normalizedCountry: string } })[];
     products: { id: string; productName: string; ean: string | null }[];
+    contacts: BrandElectronicContact[];
 };
 
 /**
  * Service for managing Brands (trade names / trademarks)
  * Uses per-brand version numbering and currentVersionId pointer
+ * FIX: Added P2002 retry for version number race conditions
  */
 export class BrandService {
     /**
@@ -39,12 +42,12 @@ export class BrandService {
                 },
             });
 
-            // Create initial version (version 1)
+            // Create initial version (version 1) - no race possible on create
             const version = await tx.brandVersion.create({
                 data: {
                     brandId: newBrand.id,
                     sourceId: source.id,
-                    versionNumber: 1, // FIX D: Explicit version number
+                    versionNumber: 1,
                     originalData: data as unknown as Prisma.JsonObject,
                     normalizedData: {
                         tradeName: data.tradeName,
@@ -54,7 +57,7 @@ export class BrandService {
                 },
             });
 
-            // FIX E: Update brand with current version pointer
+            // Update brand with current version pointer
             const updatedBrand = await tx.brand.update({
                 where: { id: newBrand.id },
                 data: { currentVersionId: version.id },
@@ -77,17 +80,11 @@ export class BrandService {
 
     /**
      * Update a brand (creates new version)
+     * FIX: Uses P2002 retry for version number race conditions
      */
     async update(id: string, data: UpdateBrandInput): Promise<Brand> {
         const current = await this.getById(id);
         const source = await sourceService.findOrCreate(data.source);
-
-        // Get current max version number for this brand
-        const maxVersion = await prisma.brandVersion.aggregate({
-            where: { brandId: id },
-            _max: { versionNumber: true },
-        });
-        const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
 
         const updates: Partial<Brand> = {};
         if (data.tradeName) updates.tradeName = data.tradeName;
@@ -98,42 +95,52 @@ export class BrandService {
         if (data.isVerified !== undefined) updates.isVerified = data.isVerified;
         if (data.isActive !== undefined) updates.isActive = data.isActive;
 
-        const brand = await prisma.$transaction(async (tx) => {
-            // Create new version
-            const newVersion = await tx.brandVersion.create({
-                data: {
-                    brandId: id,
-                    sourceId: source.id,
-                    versionNumber: nextVersionNumber, // FIX D: Sequential per brand
-                    originalData: data as unknown as Prisma.JsonObject,
-                    normalizedData: {
-                        tradeName: updates.tradeName ?? current.tradeName,
-                        tradeMarkNumber: updates.tradeMarkNumber ?? current.tradeMarkNumber,
-                    } as unknown as Prisma.JsonObject,
-                    changeNote: data.changeNote,
-                },
-            });
+        // FIX: Wrap in retry for P2002 race conditions
+        const brand = await withP2002Retry(async () => {
+            return prisma.$transaction(async (tx) => {
+                // Get current max version number INSIDE transaction
+                const maxVersion = await tx.brandVersion.aggregate({
+                    where: { brandId: id },
+                    _max: { versionNumber: true },
+                });
+                const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
 
-            // FIX E: Update brand with new current version pointer
-            const updated = await tx.brand.update({
-                where: { id },
-                data: {
-                    ...updates,
-                    currentVersionId: newVersion.id,
-                },
-            });
+                // Create new version
+                const newVersion = await tx.brandVersion.create({
+                    data: {
+                        brandId: id,
+                        sourceId: source.id,
+                        versionNumber: nextVersionNumber,
+                        originalData: data as unknown as Prisma.JsonObject,
+                        normalizedData: {
+                            tradeName: updates.tradeName ?? current.tradeName,
+                            tradeMarkNumber: updates.tradeMarkNumber ?? current.tradeMarkNumber,
+                        } as unknown as Prisma.JsonObject,
+                        changeNote: data.changeNote,
+                    },
+                });
 
-            await tx.auditLog.create({
-                data: {
-                    action: 'UPDATE',
-                    entityType: 'Brand',
-                    entityId: id,
-                    previousData: current as unknown as Prisma.JsonObject,
-                    newData: updated as unknown as Prisma.JsonObject,
-                },
-            });
+                // Update brand with new current version pointer
+                const updated = await tx.brand.update({
+                    where: { id },
+                    data: {
+                        ...updates,
+                        currentVersionId: newVersion.id,
+                    },
+                });
 
-            return updated;
+                await tx.auditLog.create({
+                    data: {
+                        action: 'UPDATE',
+                        entityType: 'Brand',
+                        entityId: id,
+                        previousData: current as unknown as Prisma.JsonObject,
+                        newData: updated as unknown as Prisma.JsonObject,
+                    },
+                });
+
+                return updated;
+            });
         });
 
         return brand;
@@ -245,7 +252,7 @@ export class BrandService {
                     brandId,
                     entityId: data.entityId,
                     linkType: data.linkType,
-                    marketContext: (data.marketContext as MarketContext) || 'GLOBAL', // FIX C
+                    marketContext: (data.marketContext as MarketContext) || 'GLOBAL',
                     productScope: data.productScope,
                     validFrom: data.validFrom ? new Date(data.validFrom) : undefined,
                     validTo: data.validTo ? new Date(data.validTo) : undefined,

@@ -7,6 +7,7 @@ import {
     brandQuerySchema,
     createBrandLinkSchema,
 } from '../schemas';
+import { MarketContext } from '@prisma/client';
 
 const router = Router();
 
@@ -145,7 +146,7 @@ router.post(
 router.get('/:id/entities', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const linkType = req.query.linkType as any;
-        const marketContext = req.query.marketContext as string;
+        const marketContext = req.query.marketContext as MarketContext | undefined;
 
         const links = await brandService.getLinkedEntities(
             req.params.id,

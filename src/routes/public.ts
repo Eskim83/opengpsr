@@ -1,7 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { entityService, verificationService } from '../services';
+import prisma from '../config/database';
+import { entityService, verificationService, contactService } from '../services';
 import { publicRateLimiter } from '../middleware';
-import { RoleType, SourceType, VerificationStatusType } from '@prisma/client';
+import { RoleType, SourceType, VerificationStatusType, MarketContext } from '@prisma/client';
 
 const router = Router();
 
@@ -55,13 +56,22 @@ router.get('/entities', async (req: Request, res: Response, next: NextFunction) 
  * @route   GET /api/public/entities/:id
  * @desc    Public entity detail
  * @access  Public (rate-limited)
+ * 
+ * FIX: Removed normalizedEmail (doesn't exist in schema).
+ * Contact info now comes from EntityElectronicContact where isPublic=true.
  */
 router.get('/entities/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const entity = await entityService.getById(req.params.id);
         const latestVerification = await verificationService.getLatestVerificationStatus(entity.id);
 
-        // Return public view with limited information
+        // FIX: Get public contacts from EntityElectronicContact
+        const publicContacts = await contactService.getForEntity(entity.id, { publicOnly: true });
+
+        // Extract email contact if available
+        const emailContact = publicContacts.find(c => c.contactType === 'EMAIL');
+        const formContact = publicContacts.find(c => c.contactType === 'CONTACT_FORM' || c.contactType === 'WEBSITE_SECTION');
+
         res.json({
             success: true,
             data: {
@@ -71,8 +81,17 @@ router.get('/entities/:id', async (req: Request, res: Response, next: NextFuncti
                 city: entity.normalizedCity,
                 country: entity.normalizedCountry,
                 website: entity.normalizedWebsite,
-                email: entity.normalizedEmail,
                 phone: entity.normalizedPhone,
+                // FIX: Contact info from ElectronicContact, not Entity
+                electronicContacts: publicContacts.map(c => ({
+                    type: c.contactType,
+                    value: c.value,
+                    label: c.label,
+                    directCommunicationConfirmed: c.directCommunicationConfirmed,
+                })),
+                // Legacy field for backward compatibility
+                email: emailContact?.value,
+                contactFormUrl: formContact?.value,
                 roles: entity.roles.map((r) => ({
                     type: r.roleType,
                     marketContext: r.marketContext,
@@ -96,27 +115,38 @@ router.get('/schema', (req: Request, res: Response) => {
     res.json({
         success: true,
         data: {
-            version: '1.0.0',
-            description: 'OpenGPSR API Schema - Public Reference Data for GPSR Entities',
+            version: '2.0.0',
+            description: 'OpenGPSR API Schema - Public Reference Data for GPSR Entities and Brands',
             disclaimer: 'This data is informational only. It does not constitute legal advice or guarantee compliance with GPSR regulations.',
             entities: {
                 description: 'Business entities relevant to GPSR (producers, importers, responsible persons)',
                 fields: {
                     id: 'Unique identifier (UUID)',
                     name: 'Normalized entity name',
-                    address: 'Business address',
+                    address: 'Business address (postal address per GPSR)',
                     city: 'City',
                     country: 'ISO 3166-1 alpha-2 country code',
                     website: 'Entity website URL',
-                    email: 'Contact email',
                     phone: 'Contact phone',
-                    roles: 'Array of GPSR roles',
+                    electronicContacts: 'Array of electronic contact points (email, forms) per GPSR',
+                    roles: 'Array of GPSR roles with market context',
                     verificationStatus: 'Current verification status (informational only)',
+                },
+            },
+            brands: {
+                description: 'Trade names and trademarks (operational core for e-commerce)',
+                fields: {
+                    id: 'Unique identifier (UUID)',
+                    tradeName: 'Registered trade name or trademark',
+                    tradeMarkNumber: 'Official trademark registration number',
+                    linkedEntities: 'Entities responsible for this brand in various markets',
                 },
             },
             roleTypes: Object.values(RoleType),
             sourceTypes: Object.values(SourceType),
             verificationStatuses: Object.values(VerificationStatusType),
+            marketContexts: Object.values(MarketContext),
+            electronicContactTypes: ['EMAIL', 'CONTACT_FORM', 'WEBSITE_SECTION', 'OTHER'],
             rateLimit: {
                 windowMs: 900000,
                 maxRequests: 100,
@@ -130,19 +160,23 @@ router.get('/schema', (req: Request, res: Response) => {
  * @route   GET /api/public/stats
  * @desc    Public statistics about the database
  * @access  Public (rate-limited)
+ * 
+ * FIX: Uses prisma directly instead of require() and inefficient patterns
  */
 router.get('/stats', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const [
             totalEntities,
             activeEntities,
+            totalBrands,
             totalSources,
             entitiesByCountry,
         ] = await Promise.all([
-            entityService.list({ limit: '1' }).then((r) => r.total),
-            entityService.list({ isActive: 'true', limit: '1' }).then((r) => r.total),
-            require('../config/database').default.source.count(),
-            require('../config/database').default.entity.groupBy({
+            prisma.entity.count(),
+            prisma.entity.count({ where: { isActive: true } }),
+            prisma.brand.count({ where: { isActive: true } }),
+            prisma.source.count(),
+            prisma.entity.groupBy({
                 by: ['normalizedCountry'],
                 _count: true,
                 where: { isActive: true },
@@ -156,8 +190,9 @@ router.get('/stats', async (req: Request, res: Response, next: NextFunction) => 
             data: {
                 totalEntities,
                 activeEntities,
+                totalBrands,
                 totalSources,
-                topCountries: entitiesByCountry.map((c: any) => ({
+                topCountries: entitiesByCountry.map((c) => ({
                     country: c.normalizedCountry,
                     count: c._count,
                 })),

@@ -1,9 +1,10 @@
 import prisma from '../config/database';
-import { Entity, EntityVersion, EntityRole, Prisma, RoleType, MarketContext } from '@prisma/client';
+import { Entity, EntityVersion, EntityRole, Prisma, RoleType, MarketContext, EntityElectronicContact } from '@prisma/client';
 import { CreateEntityInput, UpdateEntityInput, EntityQueryInput, AddRoleInput } from '../schemas';
 import { sourceService } from './sourceService';
 import { auditService } from './auditService';
 import { NotFoundError } from '../utils/errors';
+import { withP2002Retry } from '../utils/prismaRetry';
 import {
     normalizeName,
     normalizeVatId,
@@ -17,12 +18,17 @@ import { config } from '../config';
 // Types
 export type EntityWithRelations = Entity & {
     roles: EntityRole[];
-    contacts: any[];
+    contacts: EntityElectronicContact[];
+};
+
+export type EntityWithRoles = Entity & {
+    roles: EntityRole[];
 };
 
 /**
  * Service for managing GPSR Entities
  * Uses per-entity version numbering and currentVersionId pointer
+ * FIX: Added P2002 retry for version number race conditions
  */
 export class EntityService {
     /**
@@ -53,12 +59,12 @@ export class EntityService {
                 },
             });
 
-            // Create initial version (version 1)
+            // Create initial version (version 1) - no race possible on create
             const version = await tx.entityVersion.create({
                 data: {
                     entityId: newEntity.id,
                     sourceId: source.id,
-                    versionNumber: 1, // FIX D: Explicit version number
+                    versionNumber: 1,
                     originalData: data as unknown as Prisma.JsonObject,
                     normalizedData: {
                         name: normalizedName,
@@ -72,7 +78,7 @@ export class EntityService {
                 },
             });
 
-            // FIX E: Update entity with current version pointer
+            // Update entity with current version pointer
             const updatedEntity = await tx.entity.update({
                 where: { id: newEntity.id },
                 data: { currentVersionId: version.id },
@@ -107,17 +113,11 @@ export class EntityService {
 
     /**
      * Update entity (creates new version)
+     * FIX: Uses P2002 retry for version number race conditions
      */
     async update(id: string, data: UpdateEntityInput): Promise<Entity> {
         const current = await this.getById(id);
         const source = await sourceService.findOrCreate(data.source);
-
-        // Get current max version number for this entity
-        const maxVersion = await prisma.entityVersion.aggregate({
-            where: { entityId: id },
-            _max: { versionNumber: true },
-        });
-        const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
 
         // Build updates
         const updates: Partial<Entity> = {};
@@ -130,48 +130,58 @@ export class EntityService {
         if (data.website !== undefined) updates.normalizedWebsite = data.website ? normalizeWebsite(data.website) : null;
         if (data.isActive !== undefined) updates.isActive = data.isActive;
 
-        const entity = await prisma.$transaction(async (tx) => {
-            // Create new version
-            const newVersion = await tx.entityVersion.create({
-                data: {
-                    entityId: id,
-                    sourceId: source.id,
-                    versionNumber: nextVersionNumber, // FIX D: Sequential per entity
-                    originalData: data as unknown as Prisma.JsonObject,
-                    normalizedData: {
-                        name: updates.normalizedName ?? current.normalizedName,
-                        address: updates.normalizedAddress ?? current.normalizedAddress,
-                        city: updates.normalizedCity ?? current.normalizedCity,
-                        country: updates.normalizedCountry ?? current.normalizedCountry,
-                        vatId: updates.normalizedVatId ?? current.normalizedVatId,
-                        phone: updates.normalizedPhone ?? current.normalizedPhone,
-                        website: updates.normalizedWebsite ?? current.normalizedWebsite,
-                    } as unknown as Prisma.JsonObject,
-                    changeNote: data.changeNote,
-                },
-            });
+        // FIX: Wrap in retry for P2002 race conditions
+        const entity = await withP2002Retry(async () => {
+            return prisma.$transaction(async (tx) => {
+                // Get current max version number INSIDE transaction
+                const maxVersion = await tx.entityVersion.aggregate({
+                    where: { entityId: id },
+                    _max: { versionNumber: true },
+                });
+                const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
 
-            // FIX E: Update entity with new current version pointer
-            const updated = await tx.entity.update({
-                where: { id },
-                data: {
-                    ...updates,
-                    currentVersionId: newVersion.id,
-                },
-            });
+                // Create new version
+                const newVersion = await tx.entityVersion.create({
+                    data: {
+                        entityId: id,
+                        sourceId: source.id,
+                        versionNumber: nextVersionNumber,
+                        originalData: data as unknown as Prisma.JsonObject,
+                        normalizedData: {
+                            name: updates.normalizedName ?? current.normalizedName,
+                            address: updates.normalizedAddress ?? current.normalizedAddress,
+                            city: updates.normalizedCity ?? current.normalizedCity,
+                            country: updates.normalizedCountry ?? current.normalizedCountry,
+                            vatId: updates.normalizedVatId ?? current.normalizedVatId,
+                            phone: updates.normalizedPhone ?? current.normalizedPhone,
+                            website: updates.normalizedWebsite ?? current.normalizedWebsite,
+                        } as unknown as Prisma.JsonObject,
+                        changeNote: data.changeNote,
+                    },
+                });
 
-            // Audit log
-            await tx.auditLog.create({
-                data: {
-                    action: 'UPDATE',
-                    entityType: 'Entity',
-                    entityId: id,
-                    previousData: current as unknown as Prisma.JsonObject,
-                    newData: updated as unknown as Prisma.JsonObject,
-                },
-            });
+                // Update entity with new current version pointer
+                const updated = await tx.entity.update({
+                    where: { id },
+                    data: {
+                        ...updates,
+                        currentVersionId: newVersion.id,
+                    },
+                });
 
-            return updated;
+                // Audit log
+                await tx.auditLog.create({
+                    data: {
+                        action: 'UPDATE',
+                        entityType: 'Entity',
+                        entityId: id,
+                        previousData: current as unknown as Prisma.JsonObject,
+                        newData: updated as unknown as Prisma.JsonObject,
+                    },
+                });
+
+                return updated;
+            });
         });
 
         return entity;
@@ -229,9 +239,10 @@ export class EntityService {
 
     /**
      * List entities with filtering
+     * FIX: Return type correctly includes roles
      */
     async list(query: EntityQueryInput): Promise<{
-        entities: Entity[];
+        entities: EntityWithRoles[];
         total: number;
         limit: number;
         offset: number;

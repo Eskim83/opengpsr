@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import { AppError, ValidationError } from '../utils/errors';
 
 interface ErrorResponse {
@@ -12,6 +13,7 @@ interface ErrorResponse {
 
 /**
  * Global error handler middleware
+ * FIX: Uses proper Prisma error detection with instanceof
  */
 export function errorHandler(
     err: Error,
@@ -39,11 +41,9 @@ export function errorHandler(
         return;
     }
 
-    // Handle Prisma errors
-    if (err.constructor.name === 'PrismaClientKnownRequestError') {
-        const prismaError = err as any;
-
-        if (prismaError.code === 'P2002') {
+    // FIX: Handle Prisma errors with proper instanceof check
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        if (err.code === 'P2002') {
             res.status(409).json({
                 success: false,
                 error: {
@@ -54,7 +54,7 @@ export function errorHandler(
             return;
         }
 
-        if (prismaError.code === 'P2025') {
+        if (err.code === 'P2025') {
             res.status(404).json({
                 success: false,
                 error: {
@@ -64,6 +64,28 @@ export function errorHandler(
             });
             return;
         }
+
+        // Other Prisma errors
+        res.status(400).json({
+            success: false,
+            error: {
+                message: 'Database operation failed',
+                code: `PRISMA_${err.code}`,
+            },
+        });
+        return;
+    }
+
+    // Handle Prisma validation errors
+    if (err instanceof Prisma.PrismaClientValidationError) {
+        res.status(400).json({
+            success: false,
+            error: {
+                message: 'Invalid data provided',
+                code: 'VALIDATION_ERROR',
+            },
+        });
+        return;
     }
 
     // Handle unknown errors

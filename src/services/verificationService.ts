@@ -6,6 +6,8 @@ import { NotFoundError } from '../utils/errors';
 /**
  * Service for managing verification records
  * Verification is INFORMATIONAL ONLY - not a legal certification
+ * 
+ * FIX: Uses Entity.currentVersionId instead of EntityVersion.isCurrent
  */
 export class VerificationService {
     /**
@@ -62,17 +64,47 @@ export class VerificationService {
 
     /**
      * Get the latest verification status for an entity
+     * FIX: Uses Entity.currentVersionId instead of EntityVersion.isCurrent
      */
     async getLatestVerificationStatus(entityId: string): Promise<VerificationRecord | null> {
+        // Get entity with currentVersionId
+        const entity = await prisma.entity.findUnique({
+            where: { id: entityId },
+            select: { currentVersionId: true },
+        });
+
+        if (!entity?.currentVersionId) {
+            return null;
+        }
+
+        // Get latest verification for current version
         return prisma.verificationRecord.findFirst({
             where: {
-                version: {
-                    entityId,
-                    isCurrent: true,
-                },
+                versionId: entity.currentVersionId,
             },
             orderBy: { verifiedAt: 'desc' },
         });
+    }
+
+    /**
+     * Get current version ID for an entity
+     * Utility method for routes that need to add verification to current version
+     */
+    async getCurrentVersionId(entityId: string): Promise<string> {
+        const entity = await prisma.entity.findUnique({
+            where: { id: entityId },
+            select: { currentVersionId: true },
+        });
+
+        if (!entity) {
+            throw new NotFoundError('Entity');
+        }
+
+        if (!entity.currentVersionId) {
+            throw new NotFoundError('Entity has no current version');
+        }
+
+        return entity.currentVersionId;
     }
 
     /**

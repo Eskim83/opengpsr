@@ -2,8 +2,6 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { verificationService } from '../services';
 import { validateBody } from '../middleware';
 import { addVerificationSchema } from '../schemas';
-import prisma from '../config/database';
-import { NotFoundError } from '../utils/errors';
 
 const router = Router();
 
@@ -36,26 +34,19 @@ router.get(
  * @route   POST /api/v1/entities/:entityId/verification
  * @desc    Add verification record to entity's current version
  * @access  API
+ * 
+ * FIX: Uses Entity.currentVersionId via verificationService.getCurrentVersionId()
  */
 router.post(
     '/entities/:entityId/verification',
     validateBody(addVerificationSchema),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
-            // Get the current version of the entity
-            const currentVersion = await prisma.entityVersion.findFirst({
-                where: {
-                    entityId: req.params.entityId,
-                    isCurrent: true,
-                },
-            });
-
-            if (!currentVersion) {
-                throw new NotFoundError('Entity or current version');
-            }
+            // FIX: Get current version via service (uses currentVersionId pointer)
+            const currentVersionId = await verificationService.getCurrentVersionId(req.params.entityId);
 
             const verification = await verificationService.addVerification(
-                currentVersion.id,
+                currentVersionId,
                 req.body
             );
 

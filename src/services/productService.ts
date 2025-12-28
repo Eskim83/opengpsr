@@ -9,6 +9,7 @@ import {
 } from '../schemas';
 import { sourceService } from './sourceService';
 import { NotFoundError } from '../utils/errors';
+import { withP2002Retry } from '../utils/prismaRetry';
 import { config } from '../config';
 
 // Types
@@ -19,7 +20,7 @@ export type ProductWithSafety = ProductReference & {
 
 /**
  * Service for managing Product References and Safety Information
- * FIX A: Proper SafetyInfo versioning with isCurrent flag
+ * FIX: Proper SafetyInfo versioning with P2002 retry
  */
 export class ProductService {
     /**
@@ -196,12 +197,12 @@ export class ProductService {
     }
 
     // =========================================================================
-    // Safety Info Methods - FIX A: Proper versioning
+    // Safety Info Methods - FIX: P2002 retry for version race conditions
     // =========================================================================
 
     /**
      * Add safety information for a product + country/language
-     * FIX A: Creates new version instead of replacing
+     * FIX: Uses P2002 retry for version number collisions
      */
     async addSafetyInfo(data: CreateSafetyInfoInput): Promise<SafetyInfo> {
         // Verify product exists
@@ -217,76 +218,79 @@ export class ProductService {
         const countryCode = data.countryCode.toUpperCase();
         const languageCode = data.languageCode.toLowerCase();
 
-        const safetyInfo = await prisma.$transaction(async (tx) => {
-            // Find current version for this product/country/language
-            const currentVersion = await tx.safetyInfo.findFirst({
-                where: {
-                    productId: data.productId,
-                    countryCode,
-                    languageCode,
-                    isCurrent: true,
-                },
-            });
-
-            // Calculate next version number
-            const maxVersion = await tx.safetyInfo.aggregate({
-                where: {
-                    productId: data.productId,
-                    countryCode,
-                    languageCode,
-                },
-                _max: { versionNumber: true },
-            });
-            const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
-
-            // Mark old version as not current
-            if (currentVersion) {
-                await tx.safetyInfo.update({
-                    where: { id: currentVersion.id },
-                    data: {
-                        isCurrent: false,
-                        validTo: new Date(),
+        // FIX: Wrap in retry for P2002 race conditions
+        const safetyInfo = await withP2002Retry(async () => {
+            return prisma.$transaction(async (tx) => {
+                // Find current version for this product/country/language
+                const currentVersion = await tx.safetyInfo.findFirst({
+                    where: {
+                        productId: data.productId,
+                        countryCode,
+                        languageCode,
+                        isCurrent: true,
                     },
                 });
-            }
 
-            // Create new version
-            const newInfo = await tx.safetyInfo.create({
-                data: {
-                    productId: data.productId,
-                    countryCode,
-                    languageCode,
-                    warningText: data.warningText,
-                    safetyInstructions: data.safetyInstructions,
-                    ageRestriction: data.ageRestriction,
-                    hazardSymbols: data.hazardSymbols || [],
-                    documentUrl: data.documentUrl,
-                    documentType: data.documentType,
-                    sourceId,
-                    versionNumber: nextVersionNumber,
-                    isCurrent: true,
-                    supersededBy: null,
-                },
-            });
-
-            // Link old version to new
-            if (currentVersion) {
-                await tx.safetyInfo.update({
-                    where: { id: currentVersion.id },
-                    data: { supersededBy: newInfo.id },
+                // Calculate next version number INSIDE transaction
+                const maxVersion = await tx.safetyInfo.aggregate({
+                    where: {
+                        productId: data.productId,
+                        countryCode,
+                        languageCode,
+                    },
+                    _max: { versionNumber: true },
                 });
-            }
+                const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
 
-            await tx.auditLog.create({
-                data: {
-                    action: 'CREATE',
-                    entityType: 'SafetyInfo',
-                    entityId: newInfo.id,
-                    newData: newInfo as unknown as Prisma.JsonObject,
-                },
+                // Mark old version as not current
+                if (currentVersion) {
+                    await tx.safetyInfo.update({
+                        where: { id: currentVersion.id },
+                        data: {
+                            isCurrent: false,
+                            validTo: new Date(),
+                        },
+                    });
+                }
+
+                // Create new version
+                const newInfo = await tx.safetyInfo.create({
+                    data: {
+                        productId: data.productId,
+                        countryCode,
+                        languageCode,
+                        warningText: data.warningText,
+                        safetyInstructions: data.safetyInstructions,
+                        ageRestriction: data.ageRestriction,
+                        hazardSymbols: data.hazardSymbols || [],
+                        documentUrl: data.documentUrl,
+                        documentType: data.documentType,
+                        sourceId,
+                        versionNumber: nextVersionNumber,
+                        isCurrent: true,
+                        supersededBy: null,
+                    },
+                });
+
+                // Link old version to new
+                if (currentVersion) {
+                    await tx.safetyInfo.update({
+                        where: { id: currentVersion.id },
+                        data: { supersededBy: newInfo.id },
+                    });
+                }
+
+                await tx.auditLog.create({
+                    data: {
+                        action: 'CREATE',
+                        entityType: 'SafetyInfo',
+                        entityId: newInfo.id,
+                        newData: newInfo as unknown as Prisma.JsonObject,
+                    },
+                });
+
+                return newInfo;
             });
-
-            return newInfo;
         });
 
         return safetyInfo;
