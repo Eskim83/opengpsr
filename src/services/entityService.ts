@@ -1,168 +1,166 @@
 import prisma from '../config/database';
-import { Entity, EntityVersion, EntityRole, RoleType, Prisma } from '@prisma/client';
+import { Entity, EntityVersion, EntityRole, Prisma, RoleType, MarketContext } from '@prisma/client';
 import { CreateEntityInput, UpdateEntityInput, EntityQueryInput, AddRoleInput } from '../schemas';
 import { sourceService } from './sourceService';
+import { auditService } from './auditService';
 import { NotFoundError } from '../utils/errors';
-import { config } from '../config';
 import {
     normalizeName,
     normalizeVatId,
-    normalizeEmail,
     normalizePhone,
     normalizeWebsite,
     normalizeCountry,
-    normalizeAddress,
+    normalizeAddress
 } from '../utils/normalize';
+import { config } from '../config';
 
-// Types for entity with relations
+// Types
 export type EntityWithRelations = Entity & {
     roles: EntityRole[];
-    versions: EntityVersion[];
-};
-
-export type EntityListItem = Entity & {
-    roles: EntityRole[];
-    _count: { versions: number };
+    contacts: any[];
 };
 
 /**
- * Service for managing GPSR entities
- * Handles creation, updates, versioning, and role management
+ * Service for managing GPSR Entities
+ * Uses per-entity version numbering and currentVersionId pointer
  */
 export class EntityService {
     /**
      * Create a new entity with initial version
      */
-    async create(data: CreateEntityInput): Promise<EntityWithRelations> {
-        // Get or create the source
+    async create(data: CreateEntityInput): Promise<Entity> {
         const source = await sourceService.findOrCreate(data.source);
 
-        // Normalize the input data
-        const normalized = {
-            normalizedName: normalizeName(data.name),
-            normalizedAddress: normalizeAddress(data.address),
-            normalizedCity: data.city?.trim() || null,
-            normalizedCountry: normalizeCountry(data.country),
-            normalizedVatId: normalizeVatId(data.vatId),
-            normalizedEmail: normalizeEmail(data.email),
-            normalizedPhone: normalizePhone(data.phone),
-            normalizedWebsite: normalizeWebsite(data.website),
-        };
+        // Normalize input data
+        const normalizedName = normalizeName(data.name);
+        const normalizedCountry = normalizeCountry(data.country);
+        const normalizedAddress = data.address ? normalizeAddress(data.address) : null;
+        const normalizedVatId = data.vatId ? normalizeVatId(data.vatId) : null;
+        const normalizedPhone = data.phone ? normalizePhone(data.phone) : null;
+        const normalizedWebsite = data.website ? normalizeWebsite(data.website) : null;
 
-        // Create entity with initial version in a transaction
         const entity = await prisma.$transaction(async (tx) => {
-            // Create the entity
+            // Create entity first
             const newEntity = await tx.entity.create({
                 data: {
-                    ...normalized,
-                    // Create initial version
-                    versions: {
-                        create: {
-                            sourceId: source.id,
-                            originalData: data as unknown as Prisma.JsonObject,
-                            normalizedData: normalized as unknown as Prisma.JsonObject,
-                            isCurrent: true,
-                        },
-                    },
-                    // Add role if provided
-                    ...(data.role && {
-                        roles: {
-                            create: {
-                                roleType: data.role,
-                                marketContext: data.marketContext,
-                            },
-                        },
-                    }),
-                },
-                include: {
-                    roles: true,
-                    versions: true,
+                    normalizedName,
+                    normalizedAddress,
+                    normalizedCity: data.city,
+                    normalizedCountry,
+                    normalizedVatId,
+                    normalizedPhone,
+                    normalizedWebsite,
                 },
             });
 
-            // Create audit log entry
+            // Create initial version (version 1)
+            const version = await tx.entityVersion.create({
+                data: {
+                    entityId: newEntity.id,
+                    sourceId: source.id,
+                    versionNumber: 1, // FIX D: Explicit version number
+                    originalData: data as unknown as Prisma.JsonObject,
+                    normalizedData: {
+                        name: normalizedName,
+                        address: normalizedAddress,
+                        city: data.city,
+                        country: normalizedCountry,
+                        vatId: normalizedVatId,
+                        phone: normalizedPhone,
+                        website: normalizedWebsite,
+                    } as unknown as Prisma.JsonObject,
+                },
+            });
+
+            // FIX E: Update entity with current version pointer
+            const updatedEntity = await tx.entity.update({
+                where: { id: newEntity.id },
+                data: { currentVersionId: version.id },
+            });
+
+            // Create role if provided
+            if (data.role) {
+                await tx.entityRole.create({
+                    data: {
+                        entityId: newEntity.id,
+                        roleType: data.role,
+                        marketContext: (data.marketContext as MarketContext) || 'GLOBAL',
+                    },
+                });
+            }
+
+            // Audit log
             await tx.auditLog.create({
                 data: {
                     action: 'CREATE',
                     entityType: 'Entity',
                     entityId: newEntity.id,
-                    newData: newEntity as unknown as Prisma.JsonObject,
+                    newData: updatedEntity as unknown as Prisma.JsonObject,
                 },
             });
 
-            return newEntity;
+            return updatedEntity;
         });
 
         return entity;
     }
 
     /**
-     * Update an entity (creates a new version)
+     * Update entity (creates new version)
      */
-    async update(id: string, data: UpdateEntityInput): Promise<EntityWithRelations> {
-        // Get current entity
+    async update(id: string, data: UpdateEntityInput): Promise<Entity> {
         const current = await this.getById(id);
-
-        // Get or create the source
         const source = await sourceService.findOrCreate(data.source);
 
-        // Prepare normalized updates
+        // Get current max version number for this entity
+        const maxVersion = await prisma.entityVersion.aggregate({
+            where: { entityId: id },
+            _max: { versionNumber: true },
+        });
+        const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
+
+        // Build updates
         const updates: Partial<Entity> = {};
         if (data.name) updates.normalizedName = normalizeName(data.name);
-        if (data.address !== undefined) updates.normalizedAddress = normalizeAddress(data.address);
-        if (data.city !== undefined) updates.normalizedCity = data.city?.trim() || null;
         if (data.country) updates.normalizedCountry = normalizeCountry(data.country);
-        if (data.vatId !== undefined) updates.normalizedVatId = normalizeVatId(data.vatId);
-        if (data.email !== undefined) updates.normalizedEmail = normalizeEmail(data.email);
-        if (data.phone !== undefined) updates.normalizedPhone = normalizePhone(data.phone);
-        if (data.website !== undefined) updates.normalizedWebsite = normalizeWebsite(data.website);
+        if (data.address !== undefined) updates.normalizedAddress = data.address ? normalizeAddress(data.address) : null;
+        if (data.city !== undefined) updates.normalizedCity = data.city;
+        if (data.vatId !== undefined) updates.normalizedVatId = data.vatId ? normalizeVatId(data.vatId) : null;
+        if (data.phone !== undefined) updates.normalizedPhone = data.phone ? normalizePhone(data.phone) : null;
+        if (data.website !== undefined) updates.normalizedWebsite = data.website ? normalizeWebsite(data.website) : null;
         if (data.isActive !== undefined) updates.isActive = data.isActive;
 
-        // Update in transaction
         const entity = await prisma.$transaction(async (tx) => {
-            // Mark previous versions as not current
-            await tx.entityVersion.updateMany({
-                where: { entityId: id, isCurrent: true },
-                data: { isCurrent: false },
+            // Create new version
+            const newVersion = await tx.entityVersion.create({
+                data: {
+                    entityId: id,
+                    sourceId: source.id,
+                    versionNumber: nextVersionNumber, // FIX D: Sequential per entity
+                    originalData: data as unknown as Prisma.JsonObject,
+                    normalizedData: {
+                        name: updates.normalizedName ?? current.normalizedName,
+                        address: updates.normalizedAddress ?? current.normalizedAddress,
+                        city: updates.normalizedCity ?? current.normalizedCity,
+                        country: updates.normalizedCountry ?? current.normalizedCountry,
+                        vatId: updates.normalizedVatId ?? current.normalizedVatId,
+                        phone: updates.normalizedPhone ?? current.normalizedPhone,
+                        website: updates.normalizedWebsite ?? current.normalizedWebsite,
+                    } as unknown as Prisma.JsonObject,
+                    changeNote: data.changeNote,
+                },
             });
 
-            // Get updated normalized data
-            const normalizedData = {
-                normalizedName: updates.normalizedName ?? current.normalizedName,
-                normalizedAddress: updates.normalizedAddress ?? current.normalizedAddress,
-                normalizedCity: updates.normalizedCity ?? current.normalizedCity,
-                normalizedCountry: updates.normalizedCountry ?? current.normalizedCountry,
-                normalizedVatId: updates.normalizedVatId ?? current.normalizedVatId,
-                normalizedEmail: updates.normalizedEmail ?? current.normalizedEmail,
-                normalizedPhone: updates.normalizedPhone ?? current.normalizedPhone,
-                normalizedWebsite: updates.normalizedWebsite ?? current.normalizedWebsite,
-            };
-
-            // Update entity and create new version
+            // FIX E: Update entity with new current version pointer
             const updated = await tx.entity.update({
                 where: { id },
                 data: {
                     ...updates,
-                    versions: {
-                        create: {
-                            sourceId: source.id,
-                            originalData: data as unknown as Prisma.JsonObject,
-                            normalizedData: normalizedData as unknown as Prisma.JsonObject,
-                            changeNote: data.changeNote,
-                            isCurrent: true,
-                        },
-                    },
-                },
-                include: {
-                    roles: true,
-                    versions: {
-                        orderBy: { versionNumber: 'desc' },
-                        take: 5,
-                    },
+                    currentVersionId: newVersion.id,
                 },
             });
 
-            // Create audit log
+            // Audit log
             await tx.auditLog.create({
                 data: {
                     action: 'UPDATE',
@@ -187,18 +185,11 @@ export class EntityService {
             where: { id },
             include: {
                 roles: {
-                    where: { isActive: true },
+                    where: { isActive: true, validTo: null },
                     orderBy: { createdAt: 'desc' },
                 },
-                versions: {
-                    where: { isCurrent: true },
-                    include: {
-                        source: true,
-                        verifications: {
-                            orderBy: { verifiedAt: 'desc' },
-                            take: 1,
-                        },
-                    },
+                contacts: {
+                    where: { isActive: true },
                 },
             },
         });
@@ -213,21 +204,18 @@ export class EntityService {
     /**
      * Get entity with full version history
      */
-    async getWithHistory(id: string): Promise<EntityWithRelations> {
+    async getWithHistory(id: string): Promise<Entity & {
+        versions: EntityVersion[];
+    }> {
         const entity = await prisma.entity.findUnique({
             where: { id },
             include: {
-                roles: {
-                    orderBy: { createdAt: 'desc' },
-                },
                 versions: {
+                    orderBy: { versionNumber: 'desc' },
                     include: {
                         source: true,
-                        verifications: {
-                            orderBy: { verifiedAt: 'desc' },
-                        },
+                        verifications: true,
                     },
-                    orderBy: { versionNumber: 'desc' },
                 },
             },
         });
@@ -240,10 +228,10 @@ export class EntityService {
     }
 
     /**
-     * List entities with filtering and pagination
+     * List entities with filtering
      */
     async list(query: EntityQueryInput): Promise<{
-        entities: EntityListItem[];
+        entities: Entity[];
         total: number;
         limit: number;
         offset: number;
@@ -254,31 +242,21 @@ export class EntityService {
         );
         const offset = parseInt(query.offset || '0');
 
-        // Build where clause
         const where: Prisma.EntityWhereInput = {};
 
         if (query.search) {
-            where.normalizedName = {
-                contains: query.search,
-                mode: 'insensitive',
-            };
+            where.normalizedName = { contains: query.search, mode: 'insensitive' };
         }
-
         if (query.country) {
             where.normalizedCountry = query.country.toUpperCase();
         }
-
+        if (query.role) {
+            where.roles = { some: { roleType: query.role, isActive: true } };
+        }
         if (query.isActive !== undefined) {
             where.isActive = query.isActive === 'true';
-        }
-
-        if (query.role) {
-            where.roles = {
-                some: {
-                    roleType: query.role,
-                    isActive: true,
-                },
-            };
+        } else {
+            where.isActive = true;
         }
 
         const [entities, total] = await Promise.all([
@@ -286,10 +264,7 @@ export class EntityService {
                 where,
                 include: {
                     roles: {
-                        where: { isActive: true },
-                    },
-                    _count: {
-                        select: { versions: true },
+                        where: { isActive: true, validTo: null },
                     },
                 },
                 orderBy: { normalizedName: 'asc' },
@@ -306,52 +281,34 @@ export class EntityService {
      * Add a role to an entity
      */
     async addRole(entityId: string, data: AddRoleInput): Promise<EntityRole> {
-        // Verify entity exists
         await this.getById(entityId);
 
-        const role = await prisma.$transaction(async (tx) => {
-            const newRole = await tx.entityRole.create({
-                data: {
-                    entityId,
-                    roleType: data.roleType,
-                    marketContext: data.marketContext,
-                    productScope: data.productScope,
-                    validFrom: data.validFrom ? new Date(data.validFrom) : undefined,
-                    validTo: data.validTo ? new Date(data.validTo) : undefined,
-                },
-            });
+        const role = await prisma.entityRole.create({
+            data: {
+                entityId,
+                roleType: data.roleType,
+                marketContext: (data.marketContext as MarketContext) || 'GLOBAL',
+                productScope: data.productScope,
+                validFrom: data.validFrom ? new Date(data.validFrom) : undefined,
+                validTo: data.validTo ? new Date(data.validTo) : undefined,
+            },
+        });
 
-            // Audit log
-            await tx.auditLog.create({
-                data: {
-                    action: 'ADD_ROLE',
-                    entityType: 'EntityRole',
-                    entityId: newRole.id,
-                    newData: newRole as unknown as Prisma.JsonObject,
-                },
-            });
-
-            return newRole;
+        await auditService.log({
+            action: 'ADD_ROLE',
+            entityType: 'EntityRole',
+            entityId: role.id,
+            newData: role,
         });
 
         return role;
     }
 
     /**
-     * Deactivate a role (soft delete)
-     */
-    async deactivateRole(roleId: string): Promise<EntityRole> {
-        return prisma.entityRole.update({
-            where: { id: roleId },
-            data: { isActive: false },
-        });
-    }
-
-    /**
-     * Soft delete an entity (marks as inactive)
+     * Deactivate an entity (soft delete)
      */
     async deactivate(id: string): Promise<Entity> {
-        const entity = await this.getById(id);
+        await this.getById(id);
 
         return prisma.$transaction(async (tx) => {
             const updated = await tx.entity.update({
