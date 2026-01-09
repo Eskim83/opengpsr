@@ -1,5 +1,5 @@
 import prisma from '../config/database';
-import { Brand, BrandLink, BrandVersion, Prisma, BrandLinkType, MarketContext, BrandElectronicContact } from '@prisma/client';
+import { Brand, BrandLink, BrandVersion, Prisma, BrandLinkType, MarketContext } from '@prisma/client';
 import {
     CreateBrandInput,
     UpdateBrandInput,
@@ -8,24 +8,37 @@ import {
 } from '../schemas';
 import { sourceService } from './sourceService';
 import { NotFoundError } from '../utils/errors';
-import { withP2002Retry } from '../utils/prismaRetry';
 import { config } from '../config';
 
-// Types
+/**
+ * Brand with all related data including entity links and products.
+ * Used for detailed brand views.
+ */
 export type BrandWithRelations = Brand & {
     entityLinks: (BrandLink & { entity: { id: string; normalizedName: string; normalizedCountry: string } })[];
     products: { id: string; productName: string; ean: string | null }[];
-    contacts: BrandElectronicContact[];
 };
 
 /**
- * Service for managing Brands (trade names / trademarks)
- * Uses per-brand version numbering and currentVersionId pointer
- * FIX: Added P2002 retry for version number race conditions
+ * Service for managing Brands (trade names / trademarks).
+ * 
+ * Brands are the primary operational entities in GPSR - they represent
+ * trade names or registered trademarks that appear on products. Brands
+ * can be linked to multiple entities with different roles (owner,
+ * manufacturer, importer, etc.).
+ * 
+ * @remarks
+ * - Uses per-brand version numbering and currentVersionId pointer
+ * - Supports linking to entities via BrandLink with market context
+ * - Products are associated with brands, not directly with entities
  */
 export class BrandService {
     /**
-     * Create a new brand with initial version
+     * Create a new brand with initial version.
+     * 
+     * @param data - Brand creation data including trade name and source info
+     * @returns The created brand with currentVersionId set
+     * @throws Error if source cannot be created/found
      */
     async create(data: CreateBrandInput): Promise<Brand> {
         const source = await sourceService.findOrCreate(data.source);
@@ -42,12 +55,12 @@ export class BrandService {
                 },
             });
 
-            // Create initial version (version 1) - no race possible on create
+            // Create initial version (version 1)
             const version = await tx.brandVersion.create({
                 data: {
                     brandId: newBrand.id,
                     sourceId: source.id,
-                    versionNumber: 1,
+                    versionNumber: 1, // FIX D: Explicit version number
                     originalData: data as unknown as Prisma.JsonObject,
                     normalizedData: {
                         tradeName: data.tradeName,
@@ -57,7 +70,7 @@ export class BrandService {
                 },
             });
 
-            // Update brand with current version pointer
+            // FIX E: Update brand with current version pointer
             const updatedBrand = await tx.brand.update({
                 where: { id: newBrand.id },
                 data: { currentVersionId: version.id },
@@ -79,12 +92,23 @@ export class BrandService {
     }
 
     /**
-     * Update a brand (creates new version)
-     * FIX: Uses P2002 retry for version number race conditions
+     * Update a brand by creating a new version.
+     * 
+     * @param id - Brand UUID
+     * @param data - Update data including source information
+     * @returns The updated brand
+     * @throws NotFoundError if brand doesn't exist
      */
     async update(id: string, data: UpdateBrandInput): Promise<Brand> {
         const current = await this.getById(id);
         const source = await sourceService.findOrCreate(data.source);
+
+        // Get current max version number for this brand
+        const maxVersion = await prisma.brandVersion.aggregate({
+            where: { brandId: id },
+            _max: { versionNumber: true },
+        });
+        const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
 
         const updates: Partial<Brand> = {};
         if (data.tradeName) updates.tradeName = data.tradeName;
@@ -95,59 +119,56 @@ export class BrandService {
         if (data.isVerified !== undefined) updates.isVerified = data.isVerified;
         if (data.isActive !== undefined) updates.isActive = data.isActive;
 
-        // FIX: Wrap in retry for P2002 race conditions
-        const brand = await withP2002Retry(async () => {
-            return prisma.$transaction(async (tx) => {
-                // Get current max version number INSIDE transaction
-                const maxVersion = await tx.brandVersion.aggregate({
-                    where: { brandId: id },
-                    _max: { versionNumber: true },
-                });
-                const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
-
-                // Create new version
-                const newVersion = await tx.brandVersion.create({
-                    data: {
-                        brandId: id,
-                        sourceId: source.id,
-                        versionNumber: nextVersionNumber,
-                        originalData: data as unknown as Prisma.JsonObject,
-                        normalizedData: {
-                            tradeName: updates.tradeName ?? current.tradeName,
-                            tradeMarkNumber: updates.tradeMarkNumber ?? current.tradeMarkNumber,
-                        } as unknown as Prisma.JsonObject,
-                        changeNote: data.changeNote,
-                    },
-                });
-
-                // Update brand with new current version pointer
-                const updated = await tx.brand.update({
-                    where: { id },
-                    data: {
-                        ...updates,
-                        currentVersionId: newVersion.id,
-                    },
-                });
-
-                await tx.auditLog.create({
-                    data: {
-                        action: 'UPDATE',
-                        entityType: 'Brand',
-                        entityId: id,
-                        previousData: current as unknown as Prisma.JsonObject,
-                        newData: updated as unknown as Prisma.JsonObject,
-                    },
-                });
-
-                return updated;
+        const brand = await prisma.$transaction(async (tx) => {
+            // Create new version
+            const newVersion = await tx.brandVersion.create({
+                data: {
+                    brandId: id,
+                    sourceId: source.id,
+                    versionNumber: nextVersionNumber, // FIX D: Sequential per brand
+                    originalData: data as unknown as Prisma.JsonObject,
+                    normalizedData: {
+                        tradeName: updates.tradeName ?? current.tradeName,
+                        tradeMarkNumber: updates.tradeMarkNumber ?? current.tradeMarkNumber,
+                    } as unknown as Prisma.JsonObject,
+                    changeNote: data.changeNote,
+                },
             });
+
+            // FIX E: Update brand with new current version pointer
+            const updated = await tx.brand.update({
+                where: { id },
+                data: {
+                    ...updates,
+                    currentVersionId: newVersion.id,
+                },
+            });
+
+            await tx.auditLog.create({
+                data: {
+                    action: 'UPDATE',
+                    entityType: 'Brand',
+                    entityId: id,
+                    previousData: current as unknown as Prisma.JsonObject,
+                    newData: updated as unknown as Prisma.JsonObject,
+                },
+            });
+
+            return updated;
         });
 
         return brand;
     }
 
     /**
-     * Get brand by ID with relations
+     * Get brand by ID with all relations.
+     * 
+     * Includes entity links, recent products, public contacts,
+     * and recent safety alerts.
+     * 
+     * @param id - Brand UUID
+     * @returns Brand with all related data
+     * @throws NotFoundError if brand doesn't exist
      */
     async getById(id: string): Promise<BrandWithRelations> {
         const brand = await prisma.brand.findUnique({
@@ -235,7 +256,16 @@ export class BrandService {
     }
 
     /**
-     * Link a brand to an entity
+     * Link a brand to an entity with a specific role.
+     * 
+     * Creates a relationship between a brand and an entity,
+     * specifying what role the entity plays for this brand
+     * (e.g., owner, manufacturer, importer).
+     * 
+     * @param brandId - Brand UUID
+     * @param data - Link data including entityId, link type, and market context
+     * @returns The created BrandLink
+     * @throws NotFoundError if brand or entity doesn't exist
      */
     async addEntityLink(brandId: string, data: CreateBrandLinkInput): Promise<BrandLink> {
         // Verify both exist
@@ -252,7 +282,7 @@ export class BrandService {
                     brandId,
                     entityId: data.entityId,
                     linkType: data.linkType,
-                    marketContext: (data.marketContext as MarketContext) || 'GLOBAL',
+                    marketContext: (data.marketContext as MarketContext) || 'GLOBAL', // FIX C
                     productScope: data.productScope,
                     validFrom: data.validFrom ? new Date(data.validFrom) : undefined,
                     validTo: data.validTo ? new Date(data.validTo) : undefined,
@@ -275,7 +305,15 @@ export class BrandService {
     }
 
     /**
-     * Get entities linked to a brand by role
+     * Get entities linked to a brand.
+     * 
+     * Can be filtered by link type and/or market context.
+     * Includes entity details and their public contacts.
+     * 
+     * @param brandId - Brand UUID
+     * @param linkType - Optional filter by link type (e.g., MANUFACTURER)
+     * @param marketContext - Optional filter by market context (e.g., EU)
+     * @returns Array of brand links with entity details
      */
     async getLinkedEntities(brandId: string, linkType?: BrandLinkType, marketContext?: MarketContext) {
         return prisma.brandLink.findMany({

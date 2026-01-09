@@ -1,17 +1,25 @@
 import prisma from '../config/database';
-import { Source, SourceType, Prisma } from '@prisma/client';
+import { Source, SourceType } from '@prisma/client';
 import { CreateSourceInput } from '../schemas';
 import { NotFoundError } from '../utils/errors';
-import { withP2002Retry } from '../utils/prismaRetry';
 
 /**
- * Service for managing data sources
- * Sources track the origin of all data in the system
- * FIX: Added P2002 retry for findOrCreate race conditions
+ * Service for managing data sources.
+ * 
+ * Sources track the origin of all data in the system for transparency
+ * and audit purposes. Every piece of entity/brand data must have a source.
+ * 
+ * @remarks
+ * - Sources are identified by type + identifier combination
+ * - findOrCreate prevents duplicate sources
+ * - Supports various source types (community, official registry, etc.)
  */
 export class SourceService {
     /**
-     * Create a new source
+     * Create a new source.
+     * 
+     * @param data - Source data including type and optional identifiers
+     * @returns The created source
      */
     async create(data: CreateSourceInput): Promise<Source> {
         return prisma.source.create({
@@ -27,9 +35,14 @@ export class SourceService {
     }
 
     /**
-     * Find or create a source based on type and identifier
-     * FIX: Uses P2002 retry for race conditions when multiple requests
-     * try to create the same source simultaneously
+     * Find or create a source based on type and identifier.
+     * 
+     * If a source with the same type and identifier exists, returns it.
+     * Otherwise, creates a new source. This prevents duplicate source
+     * records for the same data origin.
+     * 
+     * @param data - Source data with type and optional identifier
+     * @returns Existing or newly created source
      */
     async findOrCreate(data: {
         sourceType: SourceType;
@@ -52,32 +65,15 @@ export class SourceService {
             }
         }
 
-        // FIX: Wrap create in retry for race conditions
-        // Two parallel requests might both not find and try to create
-        return withP2002Retry(async () => {
-            // Double-check inside retry in case another request created it
-            if (data.sourceIdentifier) {
-                const existing = await prisma.source.findFirst({
-                    where: {
-                        sourceType: data.sourceType,
-                        sourceIdentifier: data.sourceIdentifier,
-                    },
-                });
-
-                if (existing) {
-                    return existing;
-                }
-            }
-
-            return prisma.source.create({
-                data: {
-                    sourceType: data.sourceType,
-                    sourceIdentifier: data.sourceIdentifier,
-                    description: data.description,
-                    sourceUrl: data.sourceUrl,
-                    sourceName: data.sourceName,
-                },
-            });
+        // Create new source
+        return prisma.source.create({
+            data: {
+                sourceType: data.sourceType,
+                sourceIdentifier: data.sourceIdentifier,
+                description: data.description,
+                sourceUrl: data.sourceUrl,
+                sourceName: data.sourceName,
+            },
         });
     }
 

@@ -69,10 +69,10 @@ router.get('/:id/versions', async (req: Request, res: Response, next: NextFuncti
                     id: entity.id,
                     normalizedName: entity.normalizedName,
                     normalizedCountry: entity.normalizedCountry,
-                    currentVersionId: entity.currentVersionId,
                     isActive: entity.isActive,
                 },
                 versions: entity.versions,
+                roles: entity.roles,
             },
         });
     } catch (error) {
@@ -172,13 +172,7 @@ router.delete(
     '/:entityId/roles/:roleId',
     async (req: Request, res: Response, next: NextFunction) => {
         try {
-            // For now, role deactivation is handled via direct Prisma call
-            // TODO: Add deactivateRole method to entityService
-            const prisma = require('../config/database').default;
-            await prisma.entityRole.update({
-                where: { id: req.params.roleId },
-                data: { isActive: false },
-            });
+            await entityService.deactivateRole(req.params.roleId);
             res.json({
                 success: true,
                 message: 'Role deactivated successfully',

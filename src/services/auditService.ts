@@ -2,12 +2,23 @@ import prisma from '../config/database';
 import { AuditLog, Prisma } from '@prisma/client';
 
 /**
- * Service for audit logging
- * Tracks all significant operations for transparency
+ * Service for audit logging.
+ * 
+ * Tracks all significant operations in the system for transparency,
+ * debugging, and compliance purposes. Audit logs are immutable and
+ * include full before/after data snapshots.
+ * 
+ * @remarks
+ * - Audit logs are created automatically by service layer operations
+ * - Supports filtering by action, entity type, and performer
+ * - Includes optional IP address and user agent for web requests
  */
 export class AuditService {
     /**
-     * Create an audit log entry
+     * Create an audit log entry.
+     * 
+     * @param data - Audit data including action, entity info, and data snapshots
+     * @returns The created audit log entry
      */
     async log(data: {
         action: string;
@@ -34,7 +45,12 @@ export class AuditService {
     }
 
     /**
-     * Get audit logs for a specific entity
+     * Get audit logs for a specific entity.
+     * 
+     * @param entityType - Type of entity (e.g., 'Entity', 'Brand', 'ProductReference')
+     * @param entityId - Entity UUID
+     * @param options - Pagination options
+     * @returns Paginated audit logs with total count
      */
     async getForEntity(
         entityType: string,
@@ -59,7 +75,10 @@ export class AuditService {
     }
 
     /**
-     * Get recent audit logs
+     * Get recent audit logs with optional filtering.
+     * 
+     * @param options - Filter options (limit, action, entityType)
+     * @returns Array of recent audit logs
      */
     async getRecent(options: {
         limit?: number;

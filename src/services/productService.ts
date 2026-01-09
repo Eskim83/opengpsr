@@ -9,22 +9,36 @@ import {
 } from '../schemas';
 import { sourceService } from './sourceService';
 import { NotFoundError } from '../utils/errors';
-import { withP2002Retry } from '../utils/prismaRetry';
 import { config } from '../config';
 
-// Types
+/**
+ * Product with current safety information and brand details.
+ * Used for product detail views and lookups.
+ */
 export type ProductWithSafety = ProductReference & {
     safetyInfo: SafetyInfo[];
     brand: { id: string; tradeName: string };
 };
 
 /**
- * Service for managing Product References and Safety Information
- * FIX: Proper SafetyInfo versioning with P2002 retry
+ * Service for managing Product References and Safety Information.
+ * 
+ * Products are identified by EAN/GTIN/MPN and linked to brands.
+ * Safety information is versioned per country/language combination,
+ * allowing for localized warnings and documentation.
+ * 
+ * @remarks
+ * - Uses `isCurrent` flag for SafetyInfo versioning
+ * - Products can have multiple safety info records for different markets
+ * - Supports product lookup by EAN, GTIN, or MPN
  */
 export class ProductService {
     /**
-     * Create a new product reference
+     * Create a new product reference.
+     * 
+     * @param data - Product data including brand ID and identifiers
+     * @returns The created product
+     * @throws NotFoundError if brand doesn't exist
      */
     async create(data: CreateProductInput): Promise<ProductReference> {
         // Verify brand exists
@@ -65,7 +79,12 @@ export class ProductService {
     }
 
     /**
-     * Update a product reference
+     * Update a product reference.
+     * 
+     * @param id - Product UUID
+     * @param data - Update data
+     * @returns The updated product
+     * @throws NotFoundError if product doesn't exist
      */
     async update(id: string, data: UpdateProductInput): Promise<ProductReference> {
         const current = await this.getById(id);
@@ -105,7 +124,13 @@ export class ProductService {
     }
 
     /**
-     * Get product by ID with current safety info
+     * Get product by ID with current safety info.
+     * 
+     * Only returns active, current safety information.
+     * 
+     * @param id - Product UUID
+     * @returns Product with safety info and brand
+     * @throws NotFoundError if product doesn't exist
      */
     async getById(id: string): Promise<ProductWithSafety> {
         const product = await prisma.productReference.findUnique({
@@ -129,7 +154,13 @@ export class ProductService {
     }
 
     /**
-     * Find product by EAN/GTIN
+     * Find product by EAN, GTIN, or MPN.
+     * 
+     * Searches across all product identifiers for a match.
+     * Useful for barcode scanning and product lookups.
+     * 
+     * @param identifier - EAN, GTIN, or MPN to search for
+     * @returns Matching product or null if not found
      */
     async findByIdentifier(identifier: string): Promise<ProductReference | null> {
         return prisma.productReference.findFirst({
@@ -197,12 +228,19 @@ export class ProductService {
     }
 
     // =========================================================================
-    // Safety Info Methods - FIX: P2002 retry for version race conditions
+    // Safety Info Methods - FIX A: Proper versioning
     // =========================================================================
 
     /**
-     * Add safety information for a product + country/language
-     * FIX: Uses P2002 retry for version number collisions
+     * Add safety information for a product in a specific country/language.
+     * 
+     * Creates a new version of safety info for the given product/country/language
+     * combination. Previous versions are marked as non-current but preserved
+     * for audit trail.
+     * 
+     * @param data - Safety info data including product ID, country, language, and content
+     * @returns The created safety info record
+     * @throws NotFoundError if product doesn't exist
      */
     async addSafetyInfo(data: CreateSafetyInfoInput): Promise<SafetyInfo> {
         // Verify product exists
@@ -218,86 +256,91 @@ export class ProductService {
         const countryCode = data.countryCode.toUpperCase();
         const languageCode = data.languageCode.toLowerCase();
 
-        // FIX: Wrap in retry for P2002 race conditions
-        const safetyInfo = await withP2002Retry(async () => {
-            return prisma.$transaction(async (tx) => {
-                // Find current version for this product/country/language
-                const currentVersion = await tx.safetyInfo.findFirst({
-                    where: {
-                        productId: data.productId,
-                        countryCode,
-                        languageCode,
-                        isCurrent: true,
-                    },
-                });
-
-                // Calculate next version number INSIDE transaction
-                const maxVersion = await tx.safetyInfo.aggregate({
-                    where: {
-                        productId: data.productId,
-                        countryCode,
-                        languageCode,
-                    },
-                    _max: { versionNumber: true },
-                });
-                const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
-
-                // Mark old version as not current
-                if (currentVersion) {
-                    await tx.safetyInfo.update({
-                        where: { id: currentVersion.id },
-                        data: {
-                            isCurrent: false,
-                            validTo: new Date(),
-                        },
-                    });
-                }
-
-                // Create new version
-                const newInfo = await tx.safetyInfo.create({
-                    data: {
-                        productId: data.productId,
-                        countryCode,
-                        languageCode,
-                        warningText: data.warningText,
-                        safetyInstructions: data.safetyInstructions,
-                        ageRestriction: data.ageRestriction,
-                        hazardSymbols: data.hazardSymbols || [],
-                        documentUrl: data.documentUrl,
-                        documentType: data.documentType,
-                        sourceId,
-                        versionNumber: nextVersionNumber,
-                        isCurrent: true,
-                        supersededBy: null,
-                    },
-                });
-
-                // Link old version to new
-                if (currentVersion) {
-                    await tx.safetyInfo.update({
-                        where: { id: currentVersion.id },
-                        data: { supersededBy: newInfo.id },
-                    });
-                }
-
-                await tx.auditLog.create({
-                    data: {
-                        action: 'CREATE',
-                        entityType: 'SafetyInfo',
-                        entityId: newInfo.id,
-                        newData: newInfo as unknown as Prisma.JsonObject,
-                    },
-                });
-
-                return newInfo;
+        const safetyInfo = await prisma.$transaction(async (tx) => {
+            // Find current version for this product/country/language
+            const currentVersion = await tx.safetyInfo.findFirst({
+                where: {
+                    productId: data.productId,
+                    countryCode,
+                    languageCode,
+                    isCurrent: true,
+                },
             });
+
+            // Calculate next version number
+            const maxVersion = await tx.safetyInfo.aggregate({
+                where: {
+                    productId: data.productId,
+                    countryCode,
+                    languageCode,
+                },
+                _max: { versionNumber: true },
+            });
+            const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
+
+            // Mark old version as not current
+            if (currentVersion) {
+                await tx.safetyInfo.update({
+                    where: { id: currentVersion.id },
+                    data: {
+                        isCurrent: false,
+                        validTo: new Date(),
+                    },
+                });
+            }
+
+            // Create new version
+            const newInfo = await tx.safetyInfo.create({
+                data: {
+                    productId: data.productId,
+                    countryCode,
+                    languageCode,
+                    warningText: data.warningText,
+                    safetyInstructions: data.safetyInstructions,
+                    ageRestriction: data.ageRestriction,
+                    hazardSymbols: data.hazardSymbols || [],
+                    documentUrl: data.documentUrl,
+                    documentType: data.documentType,
+                    sourceId,
+                    versionNumber: nextVersionNumber,
+                    isCurrent: true,
+                    supersededBy: null,
+                },
+            });
+
+            // Link old version to new
+            if (currentVersion) {
+                await tx.safetyInfo.update({
+                    where: { id: currentVersion.id },
+                    data: { supersededBy: newInfo.id },
+                });
+            }
+
+            await tx.auditLog.create({
+                data: {
+                    action: 'CREATE',
+                    entityType: 'SafetyInfo',
+                    entityId: newInfo.id,
+                    newData: newInfo as unknown as Prisma.JsonObject,
+                },
+            });
+
+            return newInfo;
         });
 
         return safetyInfo;
     }
 
     /**
-     * Update current safety information (creates new version)
+     * Update current safety information (creates new version).
+     * 
+     * If updating the current version, creates a new version with the
+     * updated data. Historical versions are updated in place (rare case).
+     * 
+     * @param id - SafetyInfo UUID
+     * @param data - Update data
+     * @returns The updated/new safety info
+     * @throws NotFoundError if safety info doesn't exist
      */
     async updateSafetyInfo(id: string, data: UpdateSafetyInfoInput): Promise<SafetyInfo> {
         const current = await prisma.safetyInfo.findUnique({ where: { id } });

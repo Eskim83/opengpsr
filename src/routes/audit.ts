@@ -1,6 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { auditService } from '../services';
-import prisma from '../config/database';
 
 const router = Router();
 

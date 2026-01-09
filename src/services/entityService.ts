@@ -1,10 +1,9 @@
 import prisma from '../config/database';
-import { Entity, EntityVersion, EntityRole, Prisma, RoleType, MarketContext, EntityElectronicContact } from '@prisma/client';
+import { Entity, EntityVersion, EntityRole, Prisma, RoleType, MarketContext } from '@prisma/client';
 import { CreateEntityInput, UpdateEntityInput, EntityQueryInput, AddRoleInput } from '../schemas';
 import { sourceService } from './sourceService';
 import { auditService } from './auditService';
 import { NotFoundError } from '../utils/errors';
-import { withP2002Retry } from '../utils/prismaRetry';
 import {
     normalizeName,
     normalizeVatId,
@@ -15,24 +14,48 @@ import {
 } from '../utils/normalize';
 import { config } from '../config';
 
-// Types
+/**
+ * Entity with all related data including roles and contacts.
+ * Used for detailed entity views.
+ */
 export type EntityWithRelations = Entity & {
     roles: EntityRole[];
-    contacts: EntityElectronicContact[];
-};
-
-export type EntityWithRoles = Entity & {
-    roles: EntityRole[];
+    contacts: any[];
 };
 
 /**
- * Service for managing GPSR Entities
- * Uses per-entity version numbering and currentVersionId pointer
- * FIX: Added P2002 retry for version number race conditions
+ * Service for managing GPSR Entities.
+ * 
+ * Handles CRUD operations, version management, and role assignments
+ * for business entities in the GPSR context (manufacturers, importers,
+ * responsible persons, etc.).
+ * 
+ * @remarks
+ * - Uses per-entity version numbering (not global autoincrement)
+ * - Maintains currentVersionId pointer on Entity for quick access
+ * - All create/update operations are atomic via transactions
+ * - Supports soft deletion via isActive flag
  */
 export class EntityService {
     /**
-     * Create a new entity with initial version
+     * Create a new entity with initial version.
+     * 
+     * Creates the entity, an initial version (v1), and optionally assigns a role.
+     * All data is normalized before storage for consistent searching.
+     * 
+     * @param data - Entity creation data including name, country, and source info
+     * @returns The created entity with currentVersionId set
+     * @throws Error if source cannot be created/found
+     * 
+     * @example
+     * ```typescript
+     * const entity = await entityService.create({
+     *   name: 'Acme Corp',
+     *   country: 'PL',
+     *   source: { sourceType: 'MANUAL_ENTRY' },
+     *   role: 'MANUFACTURER'
+     * });
+     * ```
      */
     async create(data: CreateEntityInput): Promise<Entity> {
         const source = await sourceService.findOrCreate(data.source);
@@ -59,12 +82,12 @@ export class EntityService {
                 },
             });
 
-            // Create initial version (version 1) - no race possible on create
+            // Create initial version (version 1)
             const version = await tx.entityVersion.create({
                 data: {
                     entityId: newEntity.id,
                     sourceId: source.id,
-                    versionNumber: 1,
+                    versionNumber: 1, // FIX D: Explicit version number
                     originalData: data as unknown as Prisma.JsonObject,
                     normalizedData: {
                         name: normalizedName,
@@ -78,7 +101,7 @@ export class EntityService {
                 },
             });
 
-            // Update entity with current version pointer
+            // FIX E: Update entity with current version pointer
             const updatedEntity = await tx.entity.update({
                 where: { id: newEntity.id },
                 data: { currentVersionId: version.id },
@@ -112,12 +135,36 @@ export class EntityService {
     }
 
     /**
-     * Update entity (creates new version)
-     * FIX: Uses P2002 retry for version number race conditions
+     * Update an existing entity by creating a new version.
+     * 
+     * Does not modify the existing version - instead creates a new version
+     * with the updated data. The entity's currentVersionId pointer is updated
+     * to reference the new version.
+     * 
+     * @param id - Entity UUID
+     * @param data - Update data including source information
+     * @returns The updated entity
+     * @throws NotFoundError if entity doesn't exist
+     * 
+     * @example
+     * ```typescript
+     * const updated = await entityService.update('uuid', {
+     *   name: 'Acme Corporation',
+     *   source: { sourceType: 'PRIMARY_SOURCE' },
+     *   changeNote: 'Official name correction'
+     * });
+     * ```
      */
     async update(id: string, data: UpdateEntityInput): Promise<Entity> {
         const current = await this.getById(id);
         const source = await sourceService.findOrCreate(data.source);
+
+        // Get current max version number for this entity
+        const maxVersion = await prisma.entityVersion.aggregate({
+            where: { entityId: id },
+            _max: { versionNumber: true },
+        });
+        const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
 
         // Build updates
         const updates: Partial<Entity> = {};
@@ -130,65 +177,62 @@ export class EntityService {
         if (data.website !== undefined) updates.normalizedWebsite = data.website ? normalizeWebsite(data.website) : null;
         if (data.isActive !== undefined) updates.isActive = data.isActive;
 
-        // FIX: Wrap in retry for P2002 race conditions
-        const entity = await withP2002Retry(async () => {
-            return prisma.$transaction(async (tx) => {
-                // Get current max version number INSIDE transaction
-                const maxVersion = await tx.entityVersion.aggregate({
-                    where: { entityId: id },
-                    _max: { versionNumber: true },
-                });
-                const nextVersionNumber = (maxVersion._max.versionNumber || 0) + 1;
-
-                // Create new version
-                const newVersion = await tx.entityVersion.create({
-                    data: {
-                        entityId: id,
-                        sourceId: source.id,
-                        versionNumber: nextVersionNumber,
-                        originalData: data as unknown as Prisma.JsonObject,
-                        normalizedData: {
-                            name: updates.normalizedName ?? current.normalizedName,
-                            address: updates.normalizedAddress ?? current.normalizedAddress,
-                            city: updates.normalizedCity ?? current.normalizedCity,
-                            country: updates.normalizedCountry ?? current.normalizedCountry,
-                            vatId: updates.normalizedVatId ?? current.normalizedVatId,
-                            phone: updates.normalizedPhone ?? current.normalizedPhone,
-                            website: updates.normalizedWebsite ?? current.normalizedWebsite,
-                        } as unknown as Prisma.JsonObject,
-                        changeNote: data.changeNote,
-                    },
-                });
-
-                // Update entity with new current version pointer
-                const updated = await tx.entity.update({
-                    where: { id },
-                    data: {
-                        ...updates,
-                        currentVersionId: newVersion.id,
-                    },
-                });
-
-                // Audit log
-                await tx.auditLog.create({
-                    data: {
-                        action: 'UPDATE',
-                        entityType: 'Entity',
-                        entityId: id,
-                        previousData: current as unknown as Prisma.JsonObject,
-                        newData: updated as unknown as Prisma.JsonObject,
-                    },
-                });
-
-                return updated;
+        const entity = await prisma.$transaction(async (tx) => {
+            // Create new version
+            const newVersion = await tx.entityVersion.create({
+                data: {
+                    entityId: id,
+                    sourceId: source.id,
+                    versionNumber: nextVersionNumber, // FIX D: Sequential per entity
+                    originalData: data as unknown as Prisma.JsonObject,
+                    normalizedData: {
+                        name: updates.normalizedName ?? current.normalizedName,
+                        address: updates.normalizedAddress ?? current.normalizedAddress,
+                        city: updates.normalizedCity ?? current.normalizedCity,
+                        country: updates.normalizedCountry ?? current.normalizedCountry,
+                        vatId: updates.normalizedVatId ?? current.normalizedVatId,
+                        phone: updates.normalizedPhone ?? current.normalizedPhone,
+                        website: updates.normalizedWebsite ?? current.normalizedWebsite,
+                    } as unknown as Prisma.JsonObject,
+                    changeNote: data.changeNote,
+                },
             });
+
+            // FIX E: Update entity with new current version pointer
+            const updated = await tx.entity.update({
+                where: { id },
+                data: {
+                    ...updates,
+                    currentVersionId: newVersion.id,
+                },
+            });
+
+            // Audit log
+            await tx.auditLog.create({
+                data: {
+                    action: 'UPDATE',
+                    entityType: 'Entity',
+                    entityId: id,
+                    previousData: current as unknown as Prisma.JsonObject,
+                    newData: updated as unknown as Prisma.JsonObject,
+                },
+            });
+
+            return updated;
         });
 
         return entity;
     }
 
     /**
-     * Get entity by ID with relations
+     * Get entity by ID with active roles and contacts.
+     * 
+     * Retrieves the entity with its currently active roles (no validTo date)
+     * and active contact information.
+     * 
+     * @param id - Entity UUID
+     * @returns Entity with roles and contacts
+     * @throws NotFoundError if entity doesn't exist
      */
     async getById(id: string): Promise<EntityWithRelations> {
         const entity = await prisma.entity.findUnique({
@@ -212,10 +256,14 @@ export class EntityService {
     }
 
     /**
-     * Get entity with full version history
+     * Get entity with full version history and active roles
+     * @param id - Entity ID
+     * @returns Entity with versions and roles
+     * @throws NotFoundError if entity doesn't exist
      */
     async getWithHistory(id: string): Promise<Entity & {
         versions: EntityVersion[];
+        roles: EntityRole[];
     }> {
         const entity = await prisma.entity.findUnique({
             where: { id },
@@ -226,6 +274,10 @@ export class EntityService {
                         source: true,
                         verifications: true,
                     },
+                },
+                roles: {
+                    where: { isActive: true },
+                    orderBy: { createdAt: 'desc' },
                 },
             },
         });
@@ -238,11 +290,12 @@ export class EntityService {
     }
 
     /**
-     * List entities with filtering
-     * FIX: Return type correctly includes roles
+     * List entities with filtering and pagination
+     * @param query - Query parameters for filtering
+     * @returns Paginated list of entities with their active roles
      */
     async list(query: EntityQueryInput): Promise<{
-        entities: EntityWithRoles[];
+        entities: (Entity & { roles: EntityRole[] })[];
         total: number;
         limit: number;
         offset: number;
@@ -289,7 +342,24 @@ export class EntityService {
     }
 
     /**
-     * Add a role to an entity
+     * Add a GPSR role to an entity.
+     * 
+     * Entities can have multiple roles (e.g., both MANUFACTURER and IMPORTER)
+     * with different market contexts and validity periods.
+     * 
+     * @param entityId - Entity UUID
+     * @param data - Role data including type, market context, and validity dates
+     * @returns The created EntityRole
+     * @throws NotFoundError if entity doesn't exist
+     * 
+     * @example
+     * ```typescript
+     * const role = await entityService.addRole('entity-uuid', {
+     *   roleType: 'RESPONSIBLE_PERSON',
+     *   marketContext: 'EU',
+     *   productScope: 'Electronics'
+     * });
+     * ```
      */
     async addRole(entityId: string, data: AddRoleInput): Promise<EntityRole> {
         await this.getById(entityId);
@@ -332,6 +402,41 @@ export class EntityService {
                     action: 'DEACTIVATE',
                     entityType: 'Entity',
                     entityId: id,
+                    previousData: { isActive: true } as unknown as Prisma.JsonObject,
+                    newData: { isActive: false } as unknown as Prisma.JsonObject,
+                },
+            });
+
+            return updated;
+        });
+    }
+
+    /**
+     * Deactivate an entity role (soft delete)
+     * @param roleId - The ID of the role to deactivate
+     * @returns The deactivated EntityRole
+     * @throws NotFoundError if role doesn't exist
+     */
+    async deactivateRole(roleId: string): Promise<EntityRole> {
+        const role = await prisma.entityRole.findUnique({
+            where: { id: roleId },
+        });
+
+        if (!role) {
+            throw new NotFoundError('EntityRole');
+        }
+
+        return prisma.$transaction(async (tx) => {
+            const updated = await tx.entityRole.update({
+                where: { id: roleId },
+                data: { isActive: false },
+            });
+
+            await tx.auditLog.create({
+                data: {
+                    action: 'DEACTIVATE',
+                    entityType: 'EntityRole',
+                    entityId: roleId,
                     previousData: { isActive: true } as unknown as Prisma.JsonObject,
                     newData: { isActive: false } as unknown as Prisma.JsonObject,
                 },

@@ -4,12 +4,25 @@ import { CreateElectronicContactInput, ConfirmContactInput } from '../schemas';
 import { NotFoundError, ValidationError } from '../utils/errors';
 
 /**
- * Service for managing Electronic Contact Points
- * FIX B: Uses separate EntityElectronicContact and BrandElectronicContact models
+ * Service for managing Electronic Contact Points.
+ * 
+ * Handles contacts for both entities and brands separately per GPSR
+ * requirements for "electronic address" (email, contact form, website).
+ * 
+ * @remarks
+ * - Uses separate EntityElectronicContact and BrandElectronicContact models
+ * - Supports GPSR-specific flags (isForSafetyIssues, isForConsumerComplaints)
+ * - Includes direct communication confirmation tracking
  */
 export class ContactService {
     /**
-     * Create a new electronic contact for an Entity
+     * Create a new electronic contact for an Entity.
+     * 
+     * @param entityId - Entity UUID
+     * @param data - Contact data (type, value, purpose flags)
+     * @returns The created entity contact
+     * @throws NotFoundError if entity doesn't exist
+     * @throws ValidationError if contact value is invalid for the type
      */
     async createForEntity(
         entityId: string,
@@ -52,7 +65,13 @@ export class ContactService {
     }
 
     /**
-     * Create a new electronic contact for a Brand
+     * Create a new electronic contact for a Brand.
+     * 
+     * @param brandId - Brand UUID
+     * @param data - Contact data (type, value, purpose flags)
+     * @returns The created brand contact
+     * @throws NotFoundError if brand doesn't exist
+     * @throws ValidationError if contact value is invalid for the type
      */
     async createForBrand(
         brandId: string,
@@ -95,7 +114,11 @@ export class ContactService {
     }
 
     /**
-     * Validate contact value based on type
+     * Validate contact value based on type.
+     * 
+     * @param contactType - Type of contact (EMAIL, CONTACT_FORM, etc.)
+     * @param value - The contact value to validate
+     * @throws ValidationError if value doesn't match expected format
      */
     private validateContactValue(contactType: ElectronicContactType, value: string): void {
         if (contactType === 'EMAIL') {
@@ -153,7 +176,11 @@ export class ContactService {
     }
 
     /**
-     * Get contacts for an entity
+     * Get contacts for an entity.
+     * 
+     * @param entityId - Entity UUID
+     * @param options - Filter options (forSafetyIssues, publicOnly)
+     * @returns Array of entity contacts
      */
     async getForEntity(entityId: string, options?: {
         forSafetyIssues?: boolean;
@@ -189,7 +216,13 @@ export class ContactService {
     }
 
     /**
-     * Get all safety contacts for a brand (including linked entity contacts)
+     * Get all safety contacts for a brand including linked entity contacts.
+     * 
+     * Aggregates safety contacts from the brand itself and from
+     * all linked entities with MANUFACTURER, RESPONSIBLE_PERSON, or IMPORTER roles.
+     * 
+     * @param brandId - Brand UUID
+     * @returns Object with brandContacts and entityContacts arrays
      */
     async getSafetyContactsForBrand(brandId: string): Promise<{
         brandContacts: BrandElectronicContact[];
@@ -260,6 +293,76 @@ export class ContactService {
             where: { id },
             data: { isActive: false },
         });
+    }
+
+    // =========================================================================
+    // Universal methods for routes compatibility
+    // =========================================================================
+
+    /**
+     * Create an electronic contact (auto-detect entity or brand based on input)
+     * @param data - Contact data including entityId or brandId
+     * @returns Created contact
+     * @throws ValidationError if neither entityId nor brandId is provided
+     */
+    async create(
+        data: CreateElectronicContactInput & { entityId?: string; brandId?: string }
+    ): Promise<EntityElectronicContact | BrandElectronicContact> {
+        if (data.entityId) {
+            return this.createForEntity(data.entityId, data);
+        } else if (data.brandId) {
+            return this.createForBrand(data.brandId, data);
+        }
+        throw new ValidationError('Either entityId or brandId must be provided');
+    }
+
+    /**
+     * Confirm direct communication capability for a contact
+     * Tries entity contact first, then brand contact
+     * @param id - Contact ID
+     * @param data - Confirmation data
+     * @returns Updated contact
+     * @throws NotFoundError if contact not found in either table
+     */
+    async confirmDirectCommunication(
+        id: string,
+        data: ConfirmContactInput
+    ): Promise<EntityElectronicContact | BrandElectronicContact> {
+        // Try entity contact first
+        const entityContact = await prisma.entityElectronicContact.findUnique({ where: { id } });
+        if (entityContact) {
+            return this.confirmEntityContact(id, data);
+        }
+
+        // Try brand contact
+        const brandContact = await prisma.brandElectronicContact.findUnique({ where: { id } });
+        if (brandContact) {
+            return this.confirmBrandContact(id, data);
+        }
+
+        throw new NotFoundError('Electronic contact');
+    }
+
+    /**
+     * Deactivate a contact (auto-detect entity or brand)
+     * @param id - Contact ID
+     * @returns Deactivated contact
+     * @throws NotFoundError if contact not found in either table
+     */
+    async deactivate(id: string): Promise<EntityElectronicContact | BrandElectronicContact> {
+        // Try entity contact first
+        const entityContact = await prisma.entityElectronicContact.findUnique({ where: { id } });
+        if (entityContact) {
+            return this.deactivateEntityContact(id);
+        }
+
+        // Try brand contact
+        const brandContact = await prisma.brandElectronicContact.findUnique({ where: { id } });
+        if (brandContact) {
+            return this.deactivateBrandContact(id);
+        }
+
+        throw new NotFoundError('Electronic contact');
     }
 }
 

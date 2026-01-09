@@ -6,7 +6,7 @@ import {
     normalizeWebsite,
     normalizeCountry,
     normalizeAddress,
-} from '../src/utils/normalize';
+} from '../../src/utils/normalize';
 
 describe('Normalization Utilities', () => {
     describe('normalizeName', () => {
