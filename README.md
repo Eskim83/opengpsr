@@ -114,6 +114,7 @@ npm run dev
 |--------|----------|-------------|
 | GET | `/api/public/entities` | List entities (public view) |
 | GET | `/api/public/entities/:id` | Get entity details |
+| GET | `/api/public/products/:id/resolved?country=PL` | **Best known truth** for product (v2.0) |
 | GET | `/api/public/schema` | API schema documentation |
 | GET | `/api/public/stats` | Database statistics |
 
@@ -179,6 +180,58 @@ npm run dev
 | GET | `/api/v1/audit/entity/:entityType/:entityId` | Get audit logs for entity |
 | GET | `/api/v1/audit/recent` | Get recent audit logs |
 
+### Responsibilities API (v2.0)
+
+Answer the core GPSR question: "Who is responsible for product X in country Y?"
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/responsibilities/product/:productId` | Get responsibilities for a product |
+| GET | `/api/v1/responsibilities/product/:productId/resolved?country=PL` | **Best known truth** for product |
+| GET | `/api/v1/responsibilities/product/:productId/history` | Full responsibility history |
+| GET | `/api/v1/responsibilities/entity/:entityId` | What is this entity responsible for? |
+| POST | `/api/v1/responsibilities` | Assign responsibility |
+| PUT | `/api/v1/responsibilities/:id/dispute` | Mark as disputed |
+
+**Resolved View Response:**
+```json
+{
+  "productId": "uuid",
+  "countryCode": "PL",
+  "responsibilities": {
+    "RESPONSIBLE_PERSON": {
+      "entity": { "id": "...", "normalizedName": "..." },
+      "confidence": 85,
+      "dataFreshnessDays": 7,
+      "hasConflicts": false
+    }
+  },
+  "conflictCount": 0
+}
+```
+
+### Identifiers API (v2.0)
+
+Entity lookup and deduplication via VAT, EORI, DUNS, etc.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/identifiers/lookup?type=VAT_EU&value=PL123` | Find entity by identifier |
+| GET | `/api/v1/identifiers/search?q=123&type=VAT_EU` | Search by partial value |
+| GET | `/api/v1/identifiers/entity/:entityId` | Get all identifiers for entity |
+| GET | `/api/v1/identifiers/entity/:entityId/duplicates` | Find potential duplicates |
+| POST | `/api/v1/identifiers/entity/:entityId` | Add identifier to entity |
+| DELETE | `/api/v1/identifiers/:id` | Remove identifier |
+
+**Identifier Types:**
+- `VAT_EU` - EU VAT number
+- `EORI` - Economic Operators Registration and Identification
+- `LEI` - Legal Entity Identifier
+- `DUNS` - Dun & Bradstreet Number
+- `KRS`, `NIP`, `REGON` - Polish registries
+- `GLN` - Global Location Number
+- `COMPANY_REGISTER` - Generic company register number
+
 ## Data Model
 
 ### Entity
@@ -195,6 +248,24 @@ Contextual GPSR roles:
 
 ### Brand
 Trade name or registered trademark. Primary entity for e-commerce integrations.
+
+### Claim (v2.0)
+Granular verification at attribute level:
+- `PROPOSED` → `ACCEPTED` / `REJECTED` / `DISPUTED` → `SUPERSEDED`
+- Subjects: ENTITY, BRAND, PRODUCT, RESPONSIBILITY, CONTACT, ADDRESS
+- Each claim links to Evidence
+
+### Evidence (v2.0)
+Supporting material for Claims:
+- `URL`, `FILE`, `IMAGE`, `PDF`, `TEXT_SNAPSHOT`, `LABEL_PHOTO`, `REGISTRY_EXTRACT`
+- Content hash for integrity
+- Expiration tracking
+
+### Address (v2.0)
+First-class address entity:
+- Types: `REGISTERED`, `OPERATING`, `RETURN`, `SAFETY_CONTACT`
+- Normalized search field
+- Can be linked to multiple entities
 
 ### ProductReference
 Product identification (EAN/GTIN/MPN) with safety information per country/language.
@@ -245,6 +316,30 @@ npm run build
 # Start production server
 npm start
 ```
+
+## Data Governance & Neutrality
+
+OpenGPSR operates as a neutral, open data repository. The following principles apply:
+
+### Claim Submission
+- Any registered source can submit Claims about entity data
+- Claims must include supporting Evidence (URLs, documents, registry extracts)
+- Automated sources (scrapers, APIs) are marked with `assertionType: DERIVED`
+
+### Dispute Resolution
+- Conflicting claims trigger `DISPUTED` status
+- Resolution follows Evidence quality hierarchy: official registry > legal document > web source > user submission
+- No single source has inherent privilege; confidence is earned through verification
+
+### Legal Disclaimer
+- All API responses include `legalStatus: "INFORMATIONAL_ONLY"` (machine-readable)
+- Data does NOT constitute legal certification or official GPSR compliance verification
+- Users must independently verify data with authoritative sources for legal purposes
+
+### Data Retention
+- Superseded claims preserved for audit trail
+- Historical queries supported via `?at=YYYY-MM-DD` parameter
+- Version history maintained per entity/brand
 
 ## License
 

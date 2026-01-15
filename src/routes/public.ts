@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { entityService, verificationService } from '../services';
+import { entityService, verificationService, productResponsibilityService } from '../services';
 import { publicRateLimiter } from '../middleware';
 import { RoleType, SourceType, VerificationStatusType } from '@prisma/client';
 
@@ -123,6 +123,79 @@ router.get('/schema', (req: Request, res: Response) => {
             },
         },
     });
+});
+
+/**
+ * @route   GET /api/public/products/:id/resolved
+ * @desc    Public "best known truth" for product responsibilities (v2.0)
+ * @access  Public (rate-limited)
+ * 
+ * @query   country - Required: ISO 3166-1 alpha-2 country code
+ * @query   at - Optional: Date for historical query (ISO 8601 format, e.g., 2025-11-20)
+ * 
+ * Returns the highest-confidence responsible entities for each GPSR role
+ * with conflict detection, data freshness indicators, and temporal context.
+ */
+router.get('/products/:id/resolved', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const { country, at } = req.query;
+
+        if (!country) {
+            return res.status(400).json({
+                success: false,
+                error: 'Country code is required (e.g., ?country=PL)',
+                legalStatus: 'INFORMATIONAL_ONLY',
+            });
+        }
+
+        // Parse optional 'at' date for historical queries
+        let validOnDate: Date | undefined;
+        if (at) {
+            validOnDate = new Date(at as string);
+            if (isNaN(validOnDate.getTime())) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid date format. Use ISO 8601 (e.g., 2025-11-20)',
+                    legalStatus: 'INFORMATIONAL_ONLY',
+                });
+            }
+        }
+
+        const resolved = await productResponsibilityService.getResolved(
+            id,
+            country as string,
+            validOnDate
+        );
+
+        // Simplify for public consumption
+        const publicResolved = {
+            productId: resolved.productId,
+            countryCode: resolved.countryCode,
+            context: resolved.context,
+            responsibilities: Object.fromEntries(
+                Object.entries(resolved.responsibilities).map(([role, data]) => [
+                    role,
+                    {
+                        entityName: data.entity?.normalizedName,
+                        entityCountry: data.entity?.normalizedCountry,
+                        confidence: data.confidence,
+                        dataFreshnessDays: data.dataFreshnessDays,
+                        hasConflicts: data.hasConflicts,
+                    },
+                ])
+            ),
+            conflictCount: resolved.conflictCount,
+        };
+
+        res.json({
+            success: true,
+            legalStatus: 'INFORMATIONAL_ONLY',
+            data: publicResolved,
+        });
+    } catch (error) {
+        next(error);
+    }
 });
 
 /**

@@ -16,70 +16,70 @@ datasource db {
 
 /// GPSR Role Types - roles that an entity can fulfill
 enum RoleType {
-  MANUFACTURER        // Producent
-  IMPORTER            // Importer
-  RESPONSIBLE_PERSON  // Osoba odpowiedzialna
-  AUTHORIZED_REP      // Upoważniony przedstawiciel
-  DISTRIBUTOR         // Dystrybutor
+  MANUFACTURER // Producent
+  IMPORTER // Importer
+  RESPONSIBLE_PERSON // Osoba odpowiedzialna
+  AUTHORIZED_REP // Upoważniony przedstawiciel
+  DISTRIBUTOR // Dystrybutor
   FULFILLMENT_PROVIDER // Dostawca usług fulfillment
 }
 
 /// Source Types - origin of data
 enum SourceType {
-  COMMUNITY           // Dane dodane społecznościowo
-  PRIMARY_SOURCE      // Dane od podmiotu pierwotnego
-  OFFICIAL_REGISTRY   // Dane z rejestru publicznego
-  PRODUCT_LABEL       // Dane z etykiety produktu
-  WEBSITE             // Dane ze strony internetowej podmiotu
-  API_IMPORT          // Dane zaimportowane przez API
-  MANUAL_ENTRY        // Dane wprowadzone ręcznie
-  SAFETY_GATE         // Safety Gate / RAPEX alerts
+  COMMUNITY // Dane dodane społecznościowo
+  PRIMARY_SOURCE // Dane od podmiotu pierwotnego
+  OFFICIAL_REGISTRY // Dane z rejestru publicznego
+  PRODUCT_LABEL // Dane z etykiety produktu
+  WEBSITE // Dane ze strony internetowej podmiotu
+  API_IMPORT // Dane zaimportowane przez API
+  MANUAL_ENTRY // Dane wprowadzone ręcznie
+  SAFETY_GATE // Safety Gate / RAPEX alerts
 }
 
 /// Verification Status - informational only, not legal certification
 enum VerificationStatusType {
-  UNVERIFIED              // Dane dodane, niezweryfikowane
-  COMMUNITY_CONFIRMED     // Dane potwierdzone społecznościowo
-  PRIMARY_CONFIRMED       // Dane potwierdzone źródłem pierwotnym
-  HISTORICAL              // Dane historyczne / wymagające aktualizacji
-  DISPUTED                // Dane kwestionowane
-  OUTDATED                // Dane oznaczone jako nieaktualne
+  UNVERIFIED // Dane dodane, niezweryfikowane
+  COMMUNITY_CONFIRMED // Dane potwierdzone społecznościowo
+  PRIMARY_CONFIRMED // Dane potwierdzone źródłem pierwotnym
+  HISTORICAL // Dane historyczne / wymagające aktualizacji
+  DISPUTED // Dane kwestionowane
+  OUTDATED // Dane oznaczone jako nieaktualne
 }
 
 /// BrandLinkType - how a brand is related to an entity
 enum BrandLinkType {
-  OWNER           // Właściciel znaku towarowego
-  MANUFACTURER    // Producent używający brandu
-  IMPORTER        // Importer brandu do EU
-  DISTRIBUTOR     // Dystrybutor
-  AUTHORIZED_REP  // Upoważniony przedstawiciel
+  OWNER // Właściciel znaku towarowego
+  MANUFACTURER // Producent używający brandu
+  IMPORTER // Importer brandu do EU
+  DISTRIBUTOR // Dystrybutor
+  AUTHORIZED_REP // Upoważniony przedstawiciel
   RESPONSIBLE_PERSON // Osoba odpowiedzialna w EU
 }
 
 /// ElectronicContactType - per GPSR "electronic address" requirement
 enum ElectronicContactType {
-  EMAIL           // Tradycyjny email
-  CONTACT_FORM    // URL formularza kontaktowego
+  EMAIL // Tradycyjny email
+  CONTACT_FORM // URL formularza kontaktowego
   WEBSITE_SECTION // Dedykowana sekcja strony (np. /safety-contact)
-  OTHER           // Inny kanał elektroniczny
+  OTHER // Inny kanał elektroniczny
 }
 
 /// MarketContext - predefined market contexts (FIX C: no nullable in unique)
 enum MarketContext {
-  GLOBAL          // Worldwide / default
-  EU              // European Union
-  EEA             // European Economic Area
-  PL              // Poland
-  DE              // Germany
-  FR              // France
-  IT              // Italy
-  ES              // Spain
-  NL              // Netherlands
-  BE              // Belgium
-  AT              // Austria
-  CZ              // Czech Republic
-  SK              // Slovakia
-  OTHER           // Other specific market
+  GLOBAL // Worldwide / default
+  EU // European Union
+  EEA // European Economic Area
+  PL // Poland
+  DE // Germany
+  FR // France
+  IT // Italy
+  ES // Spain
+  NL // Netherlands
+  BE // Belgium
+  AT // Austria
+  CZ // Czech Republic
+  SK // Slovakia
+  OTHER // Other specific market
 }
 
 /// OwnerType - for polymorphic ownership (FIX B: XOR constraint)
@@ -90,20 +90,129 @@ enum OwnerType {
 
 /// AlertSeverity - for Safety Gate alerts
 enum AlertSeverity {
-  SERIOUS         // Poważne ryzyko
-  OTHER           // Inne ryzyko
-  LOW             // Niskie ryzyko
+  SERIOUS // Poważne ryzyko
+  OTHER // Inne ryzyko
+  LOW // Niskie ryzyko
 }
 
 /// AlertMeasure - measures taken for safety alert
 enum AlertMeasure {
-  RECALL                  // Wycofanie od konsumentów
-  WITHDRAWAL              // Wycofanie z rynku
-  IMPORT_REJECTION        // Odmowa importu
-  WARNING                 // Ostrzeżenie
-  SALES_BAN               // Zakaz sprzedaży
-  DESTRUCTION             // Zniszczenie
-  OTHER                   // Inne
+  RECALL // Wycofanie od konsumentów
+  WITHDRAWAL // Wycofanie z rynku
+  IMPORT_REJECTION // Odmowa importu
+  WARNING // Ostrzeżenie
+  SALES_BAN // Zakaz sprzedaży
+  DESTRUCTION // Zniszczenie
+  OTHER // Inne
+}
+
+/// BrandUsageType - How entity uses the brand (territorial scope)
+enum BrandUsageType {
+  OWNER            // Brand owner (trademark holder)
+  LICENSED         // Licensed to use the brand
+  COMMERCIAL_USE   // Commercial distribution
+  HISTORICAL       // Past usage, no longer active
+}
+
+// ============================================================================
+// v2.0 ENUMS - Architecture Enhancement
+// ============================================================================
+
+/// ResponsibilityStatus - Status of product responsibility assignment
+enum ResponsibilityStatus {
+  ACTIVE // Currently valid responsibility
+  HISTORICAL // Past responsibility (superseded)
+  DISPUTED // Contested responsibility
+}
+
+/// IdentifierType - Types of entity identifiers for lookup/dedup
+enum IdentifierType {
+  VAT_EU // EU VAT number
+  EORI // Economic Operators Registration and Identification
+  LEI // Legal Entity Identifier
+  DUNS // Dun & Bradstreet D-U-N-S Number
+  KRS // Polish National Court Register
+  NIP // Polish Tax Identification Number
+  REGON // Polish Statistical Number
+  GLN // Global Location Number
+  COMPANY_REGISTER // Generic company register number
+}
+
+/// ClaimStatus - Status of a data claim (P1: granular verification)
+enum ClaimStatus {
+  PROPOSED   // Claim submitted, awaiting review
+  ACCEPTED   // Claim verified and accepted
+  REJECTED   // Claim rejected
+  DISPUTED   // Claim contested by another source
+  SUPERSEDED // Replaced by newer claim
+}
+
+/// ClaimSubject - What type of entity the claim is about
+enum ClaimSubject {
+  ENTITY           // Claim about an Entity
+  BRAND            // Claim about a Brand
+  PRODUCT          // Claim about a ProductReference
+  RESPONSIBILITY   // Claim about ProductResponsibility
+  CONTACT          // Claim about contact information
+  ADDRESS          // Claim about address
+}
+
+/// AssertionType - Nature of the claim (legal/compliance clarity)
+enum AssertionType {
+  FACT                 // Verifiable fact (address, VAT, email)
+  INTERPRETATION       // Legal interpretation (e.g., "this is RP per GPSR")
+  DERIVED              // Algorithm/resolved view result
+  HISTORICAL_STATEMENT // Statement about past state
+}
+
+/// EvidenceType - Type of evidence supporting a claim
+enum EvidenceType {
+  URL              // Web URL
+  FILE             // Uploaded file
+  IMAGE            // Image/screenshot
+  PDF              // PDF document
+  TEXT_SNAPSHOT    // Captured text content
+  LABEL_PHOTO      // Product label photograph
+  REGISTRY_EXTRACT // Official registry extract
+  EMAIL_HEADER     // Email communication proof (for confirmDirectCommunication)
+  COMMUNICATION_LOG // General communication log
+}
+
+/// ContactPurpose - Purpose of contact (P2: contact separation)
+enum ContactPurpose {
+  GENERAL      // General inquiries
+  SAFETY       // Safety issues/recalls
+  LEGAL        // Legal matters
+  RETURNS      // Product returns
+  COMPLIANCE   // Regulatory compliance
+}
+
+/// AddressType - Type of address (P2: address separation)
+enum AddressType {
+  REGISTERED          // Legal/registered address
+  OPERATING           // Operating/business address
+  RETURN              // Return address for products
+  SAFETY_CONTACT      // Safety contact point address
+}
+
+/// EntityRelationType - Corporate relationship type (P3: corporate graph)
+enum EntityRelationType {
+  PARENT_OF           // Parent company
+  SUBSIDIARY_OF       // Subsidiary
+  ACQUIRED_BY         // M&A - was acquired
+  MERGED_INTO         // M&A - merged into
+  SUCCEEDED_BY        // Company that took over operations
+  AUTHORIZED_REP_FOR  // Authorized representative relationship
+  DISTRIBUTION_PARTNER // Distribution agreement
+}
+
+/// ApiClientScope - API access scope (P3: multi-tenant)
+enum ApiClientScope {
+  READ_PUBLIC       // Read public data
+  READ_PRIVATE      // Read private data (own entities)
+  WRITE             // Create/update data
+  ADMIN             // Administrative access
+  SAFETY_ALERTS     // Safety Gate integration
 }
 
 // ============================================================================
@@ -113,31 +222,31 @@ enum AlertMeasure {
 /// Brand - Trade name or registered trademark (rdzeń operacyjny GPSR)
 /// This is the primary entity for e-commerce integrations
 model Brand {
-  id                String   @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Brand identification
-  tradeName         String   // Nazwa handlowa (registered trade name)
-  tradeMarkNumber   String?  // Numer znaku towarowego (EUIPO, WIPO, national)
-  tradeMarkOffice   String?  // np. "EUIPO", "UPRP", "DPMA"
-  logoUrl           String?  // URL logo brandu
-  description       String?
-  
+  tradeName       String // Nazwa handlowa (registered trade name)
+  tradeMarkNumber String? // Numer znaku towarowego (EUIPO, WIPO, national)
+  tradeMarkOffice String? // np. "EUIPO", "UPRP", "DPMA"
+  logoUrl         String? // URL logo brandu
+  description     String?
+
   // FIX E: Current version pointer (guarantees single current)
-  currentVersionId  String?  @unique
-  
+  currentVersionId String? @unique
+
   // Metadata
-  isVerified        Boolean  @default(false)
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+  isVerified Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
   // Relations
-  entityLinks       BrandLink[]
-  products          ProductReference[]
-  contacts          BrandElectronicContact[]
-  versions          BrandVersion[]
-  safetyAlerts      SafetyAlert[]
-  
+  entityLinks  BrandLink[]
+  products     ProductReference[]
+  contacts     BrandElectronicContact[]
+  versions     BrandVersion[]
+  safetyAlerts SafetyAlert[]
+
   @@index([tradeName])
   @@index([tradeMarkNumber])
   @@index([isActive])
@@ -146,22 +255,22 @@ model Brand {
 /// BrandVersion - Version history for brand data
 /// FIX D: versionNumber is per-brand, not global autoincrement
 model BrandVersion {
-  id              String   @id @default(uuid())
-  
-  brandId         String
-  brand           Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  sourceId        String
-  source          Source   @relation(fields: [sourceId], references: [id])
-  
-  originalData    Json
-  normalizedData  Json
-  
+  id String @id @default(uuid())
+
+  brandId  String
+  brand    Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  sourceId String
+  source   Source @relation(fields: [sourceId], references: [id])
+
+  originalData   Json
+  normalizedData Json
+
   // FIX D: Per-brand version number (managed by application)
-  versionNumber   Int      // Sequential per brand, managed in service layer
-  changeNote      String?
-  
-  createdAt       DateTime @default(now())
-  
+  versionNumber Int // Sequential per brand, managed in service layer
+  changeNote    String?
+
+  createdAt DateTime @default(now())
+
   // Unique per brand version
   @@unique([brandId, versionNumber])
   @@index([brandId])
@@ -170,28 +279,31 @@ model BrandVersion {
 /// BrandLink - Mapping between Brand and Entity with context
 /// FIX C: marketContext is NOT nullable - use enum with GLOBAL default
 model BrandLink {
-  id            String        @id @default(uuid())
-  
-  brandId       String
-  brand         Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  entityId      String
-  entity        Entity        @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  
+  id String @id @default(uuid())
+
+  brandId  String
+  brand    Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  entityId String
+  entity   Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
   linkType      BrandLinkType
-  marketContext MarketContext @default(GLOBAL) // FIX C: Non-nullable with default
-  productScope  String?       // Optional: specific product categories
-  
-  validFrom     DateTime      @default(now())
-  validTo       DateTime?     // Null = currently valid
-  
-  isActive      Boolean       @default(true)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  
+  usageType     BrandUsageType @default(COMMERCIAL_USE) // How entity uses brand
+  marketContext MarketContext  @default(GLOBAL)        // FIX C: Non-nullable with default
+  countryScope  String[]                               // ISO 3166-1 alpha-2 codes (territorial scope)
+  productScope  String?                                // Optional: specific product categories
+
+  validFrom DateTime  @default(now())
+  validTo   DateTime? // Null = currently valid
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([brandId, entityId, linkType, marketContext])
   @@index([brandId])
   @@index([entityId])
   @@index([linkType])
+  @@index([usageType])
 }
 
 // ============================================================================
@@ -201,31 +313,31 @@ model BrandLink {
 
 /// EntityElectronicContact - Electronic contact for Entity
 model EntityElectronicContact {
-  id                          String                @id @default(uuid())
-  
-  entityId                    String
-  entity                      Entity                @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  
-  contactType                 ElectronicContactType
-  value                       String                // email address OR URL
-  label                       String?               // np. "Safety complaints"
-  languageCode                String?               // ISO 639-1
-  
+  id String @id @default(uuid())
+
+  entityId String
+  entity   Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  contactType  ElectronicContactType
+  value        String // email address OR URL
+  label        String? // np. "Safety complaints"
+  languageCode String? // ISO 639-1
+
   // Direct communication confirmation (GPSR requirement)
-  directCommunicationConfirmed Boolean             @default(false)
-  confirmationMethod          String?
-  confirmedAt                 DateTime?
-  confirmedBy                 String?
-  
+  directCommunicationConfirmed Boolean   @default(false)
+  confirmationMethod           String?
+  confirmedAt                  DateTime?
+  confirmedBy                  String?
+
   // Purpose flags
-  isForSafetyIssues           Boolean              @default(false)
-  isForConsumerComplaints     Boolean              @default(false)
-  isPublic                    Boolean              @default(true)
-  
-  isActive                    Boolean              @default(true)
-  createdAt                   DateTime             @default(now())
-  updatedAt                   DateTime             @updatedAt
-  
+  isForSafetyIssues       Boolean @default(false)
+  isForConsumerComplaints Boolean @default(false)
+  isPublic                Boolean @default(true)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([entityId])
   @@index([contactType])
   @@index([isForSafetyIssues])
@@ -233,29 +345,29 @@ model EntityElectronicContact {
 
 /// BrandElectronicContact - Electronic contact for Brand
 model BrandElectronicContact {
-  id                          String                @id @default(uuid())
-  
-  brandId                     String
-  brand                       Brand                 @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  
-  contactType                 ElectronicContactType
-  value                       String
-  label                       String?
-  languageCode                String?
-  
-  directCommunicationConfirmed Boolean             @default(false)
-  confirmationMethod          String?
-  confirmedAt                 DateTime?
-  confirmedBy                 String?
-  
-  isForSafetyIssues           Boolean              @default(false)
-  isForConsumerComplaints     Boolean              @default(false)
-  isPublic                    Boolean              @default(true)
-  
-  isActive                    Boolean              @default(true)
-  createdAt                   DateTime             @default(now())
-  updatedAt                   DateTime             @updatedAt
-  
+  id String @id @default(uuid())
+
+  brandId String
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  contactType  ElectronicContactType
+  value        String
+  label        String?
+  languageCode String?
+
+  directCommunicationConfirmed Boolean   @default(false)
+  confirmationMethod           String?
+  confirmedAt                  DateTime?
+  confirmedBy                  String?
+
+  isForSafetyIssues       Boolean @default(false)
+  isForConsumerComplaints Boolean @default(false)
+  isPublic                Boolean @default(true)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([brandId])
   @@index([contactType])
   @@index([isForSafetyIssues])
@@ -264,31 +376,31 @@ model BrandElectronicContact {
 // Keep legacy model for backward compatibility during migration
 /// @deprecated Use EntityElectronicContact or BrandElectronicContact
 model ElectronicContact {
-  id                          String                @id @default(uuid())
-  
-  contactType                 ElectronicContactType
-  value                       String
-  label                       String?
-  languageCode                String?
-  
-  directCommunicationConfirmed Boolean             @default(false)
-  confirmationMethod          String?
-  confirmedAt                 DateTime?
-  confirmedBy                 String?
-  
+  id String @id @default(uuid())
+
+  contactType  ElectronicContactType
+  value        String
+  label        String?
+  languageCode String?
+
+  directCommunicationConfirmed Boolean   @default(false)
+  confirmationMethod           String?
+  confirmedAt                  DateTime?
+  confirmedBy                  String?
+
   // FIX B: Both fields required, but validation at app level
   // This model is deprecated - use specific models above
-  ownerType                   OwnerType            // Explicit owner type
-  ownerId                     String               // Entity or Brand ID
-  
-  isForSafetyIssues           Boolean              @default(false)
-  isForConsumerComplaints     Boolean              @default(false)
-  isPublic                    Boolean              @default(true)
-  
-  isActive                    Boolean              @default(true)
-  createdAt                   DateTime             @default(now())
-  updatedAt                   DateTime             @updatedAt
-  
+  ownerType OwnerType // Explicit owner type
+  ownerId   String // Entity or Brand ID
+
+  isForSafetyIssues       Boolean @default(false)
+  isForConsumerComplaints Boolean @default(false)
+  isPublic                Boolean @default(true)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([ownerType, ownerId])
   @@index([contactType])
   @@index([isForSafetyIssues])
@@ -300,35 +412,37 @@ model ElectronicContact {
 
 /// ProductReference - Product identification (art. 19 GPSR)
 model ProductReference {
-  id            String   @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Product identifiers (at least one should be provided)
-  ean           String?  // EAN/GTIN-13
-  gtin          String?  // Full GTIN (8, 12, 13, 14 digits)
-  mpn           String?  // Manufacturer Part Number
-  modelNumber   String?  // Model number/name
-  sku           String?  // Stock Keeping Unit (seller-specific)
-  
+  ean         String? // EAN/GTIN-13
+  gtin        String? // Full GTIN (8, 12, 13, 14 digits)
+  mpn         String? // Manufacturer Part Number
+  modelNumber String? // Model number/name
+  sku         String? // Stock Keeping Unit (seller-specific)
+
   // Product info
-  productName   String   // Human-readable product name
+  productName     String // Human-readable product name
   productCategory String?
-  imageUrl      String?
-  productUrl    String?
-  
+  imageUrl        String?
+  productUrl      String?
+
   // Brand relationship
-  brandId       String
-  brand         Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  
+  brandId String
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
   // FIX A: Current safety info pointer (optional, for quick access)
-  
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  safetyInfo    SafetyInfo[]
-  safetyAlerts  SafetyAlert[]
-  
+  safetyInfo       SafetyInfo[]
+  safetyAlerts     SafetyAlert[]
+  // v2.0 relations
+  responsibilities ProductResponsibility[]
+
   @@index([brandId])
   @@index([ean])
   @@index([gtin])
@@ -339,40 +453,40 @@ model ProductReference {
 /// SafetyInfo - Warnings and safety information per country/language (art. 19 GPSR)
 /// FIX A: Proper versioning with isCurrent flag
 model SafetyInfo {
-  id            String   @id @default(uuid())
-  
-  productId     String
-  product       ProductReference @relation(fields: [productId], references: [id], onDelete: Cascade)
-  
+  id String @id @default(uuid())
+
+  productId String
+  product   ProductReference @relation(fields: [productId], references: [id], onDelete: Cascade)
+
   // Localization
-  countryCode   String   // ISO 3166-1 alpha-2 (PL, DE, FR...)
-  languageCode  String   // ISO 639-1 (pl, de, fr...)
-  
+  countryCode  String // ISO 3166-1 alpha-2 (PL, DE, FR...)
+  languageCode String // ISO 639-1 (pl, de, fr...)
+
   // Safety content
-  warningText   String?  // Warning text for label/offer
+  warningText        String? // Warning text for label/offer
   safetyInstructions String?
-  ageRestriction String?
-  hazardSymbols String[] // Array of hazard pictogram codes
-  
+  ageRestriction     String?
+  hazardSymbols      String[] // Array of hazard pictogram codes
+
   // Documentation
-  documentUrl   String?
-  documentType  String?  // "manual", "safety_sheet", "declaration"
-  
+  documentUrl  String?
+  documentType String? // "manual", "safety_sheet", "declaration"
+
   // Source tracking
-  sourceId      String?
-  source        Source?  @relation(fields: [sourceId], references: [id])
-  
+  sourceId String?
+  source   Source? @relation(fields: [sourceId], references: [id])
+
   // FIX A: Proper versioning - allow multiple versions per product/country/lang
-  versionNumber Int      @default(1) // Managed by application
-  isCurrent     Boolean  @default(true)
-  validFrom     DateTime @default(now())
+  versionNumber Int       @default(1) // Managed by application
+  isCurrent     Boolean   @default(true)
+  validFrom     DateTime  @default(now())
   validTo       DateTime?
-  supersededBy  String?  // ID of newer version (for history chain)
-  
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+  supersededBy  String? // ID of newer version (for history chain)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // FIX A: Unique now includes versionNumber to allow history
   @@unique([productId, countryCode, languageCode, versionNumber])
   // Index for finding current version
@@ -387,48 +501,48 @@ model SafetyInfo {
 
 /// SafetyAlert - Safety Gate / RAPEX alert (FIX: proper RAPEX domain)
 model SafetyAlert {
-  id              String   @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Alert identification
-  alertNumber     String   @unique // e.g., "A12/00001/24"
-  alertUrl        String?  // Link to Safety Gate
-  
+  alertNumber String  @unique // e.g., "A12/00001/24"
+  alertUrl    String? // Link to Safety Gate
+
   // Alert details
-  alertDate       DateTime
-  reportingCountry String  // ISO 3166-1 alpha-2
-  severity        AlertSeverity
-  riskType        String   // e.g., "Chemical", "Choking", "Fire"
-  riskDescription String?
-  
+  alertDate        DateTime
+  reportingCountry String // ISO 3166-1 alpha-2
+  severity         AlertSeverity
+  riskType         String // e.g., "Chemical", "Choking", "Fire"
+  riskDescription  String?
+
   // Product identification from alert
   productNameInAlert String
   productDescription String?
-  productBrand      String? // Brand name as stated in alert
-  productCategory   String?
-  productImageUrl   String?
-  
+  productBrand       String? // Brand name as stated in alert
+  productCategory    String?
+  productImageUrl    String?
+
   // Measures taken
-  measures        AlertMeasure[]
-  measureDetails  String?
-  
+  measures       AlertMeasure[]
+  measureDetails String?
+
   // Links to our data (optional - matched by system or manually)
-  brandId         String?
-  brand           Brand?   @relation(fields: [brandId], references: [id])
-  productId       String?
-  product         ProductReference? @relation(fields: [productId], references: [id])
-  entityId        String?  // Notified operator
-  entity          Entity?  @relation(fields: [entityId], references: [id])
-  
+  brandId   String?
+  brand     Brand?            @relation(fields: [brandId], references: [id])
+  productId String?
+  product   ProductReference? @relation(fields: [productId], references: [id])
+  entityId  String? // Notified operator
+  entity    Entity?           @relation(fields: [entityId], references: [id])
+
   // Matching metadata
-  isAutoMatched   Boolean  @default(false)
-  matchConfidence Float?   // 0-1 confidence score
-  matchedBy       String?  // Who/what matched this
+  isAutoMatched   Boolean   @default(false)
+  matchConfidence Float? // 0-1 confidence score
+  matchedBy       String? // Who/what matched this
   matchedAt       DateTime?
-  
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([alertNumber])
   @@index([alertDate])
   @@index([brandId])
@@ -443,32 +557,39 @@ model SafetyAlert {
 
 /// Entity - Core business entity (legal entity / firma)
 model Entity {
-  id                String    @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Normalized data for search and integration
   normalizedName    String
   normalizedAddress String?
   normalizedCity    String?
-  normalizedCountry String    // ISO 3166-1 alpha-2
+  normalizedCountry String // ISO 3166-1 alpha-2
   normalizedVatId   String?
   normalizedPhone   String?
   normalizedWebsite String?
-  
+
   // FIX E: Current version pointer (guarantees single current)
-  currentVersionId  String?   @unique
-  
+  currentVersionId String? @unique
+
   // Metadata
-  isActive          Boolean   @default(true)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  roles             EntityRole[]
-  versions          EntityVersion[]
-  brandLinks        BrandLink[]
-  contacts          EntityElectronicContact[]
-  safetyAlerts      SafetyAlert[]
-  
+  roles            EntityRole[]
+  versions         EntityVersion[]
+  brandLinks       BrandLink[]
+  contacts         EntityElectronicContact[]
+  safetyAlerts     SafetyAlert[]
+  // v2.0 relations
+  responsibilities   ProductResponsibility[]
+  identifiers        EntityIdentifier[]
+  nameVariants       EntityNameVariant[]
+  addresses          Address[]
+  relationsFrom      EntityRelationship[] @relation("RelationshipFrom")
+  relationsTo        EntityRelationship[] @relation("RelationshipTo")
+
   @@index([normalizedName])
   @@index([normalizedCountry])
   @@index([normalizedVatId])
@@ -477,22 +598,22 @@ model Entity {
 
 /// EntityRole - Contextual role of an entity in GPSR terms
 model EntityRole {
-  id            String    @id @default(uuid())
-  
-  entityId      String
-  entity        Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  
+  id String @id @default(uuid())
+
+  entityId String
+  entity   Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
   roleType      RoleType
   marketContext MarketContext @default(GLOBAL) // FIX C: Non-nullable
   productScope  String?
-  
-  validFrom     DateTime  @default(now())
-  validTo       DateTime?
-  
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+
+  validFrom DateTime  @default(now())
+  validTo   DateTime?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([entityId])
   @@index([roleType])
   @@index([marketContext])
@@ -505,23 +626,29 @@ model EntityRole {
 
 /// Source - Origin of data
 model Source {
-  id               String     @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   sourceType       SourceType
   sourceIdentifier String?
   description      String?
   sourceUrl        String?
   sourceName       String?
   trustNote        String?
-  
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
   entityVersions   EntityVersion[]
   brandVersions    BrandVersion[]
   safetyInfo       SafetyInfo[]
-  
+  // v2.0 relations
+  responsibilities ProductResponsibility[]
+  identifiers      EntityIdentifier[]
+  nameVariants     EntityNameVariant[]
+  claims           Claim[]
+  addresses        Address[]
+
   @@index([sourceType])
 }
 
@@ -529,28 +656,28 @@ model Source {
 /// FIX D: versionNumber is per-entity, managed by application
 /// FIX E: isCurrent replaced by Entity.currentVersionId pointer
 model EntityVersion {
-  id              String    @id @default(uuid())
-  
-  entityId        String
-  entity          Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  sourceId        String
-  source          Source    @relation(fields: [sourceId], references: [id])
-  
-  originalData    Json
-  normalizedData  Json
-  
+  id String @id @default(uuid())
+
+  entityId String
+  entity   Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  sourceId String
+  source   Source @relation(fields: [sourceId], references: [id])
+
+  originalData   Json
+  normalizedData Json
+
   // FIX D: Per-entity version number (managed by application)
-  versionNumber   Int       // Sequential per entity, managed in service layer
-  capturedAt      DateTime  @default(now())
-  
-  changeNote      String?
-  changedBy       String?
-  
-  createdAt       DateTime  @default(now())
-  
+  versionNumber Int // Sequential per entity, managed in service layer
+  capturedAt    DateTime @default(now())
+
+  changeNote String?
+  changedBy  String?
+
+  createdAt DateTime @default(now())
+
   // Relations
-  verifications   VerificationRecord[]
-  
+  verifications VerificationRecord[]
+
   // FIX D: Unique per entity version
   @@unique([entityId, versionNumber])
   @@index([entityId])
@@ -560,24 +687,300 @@ model EntityVersion {
 
 /// VerificationRecord - Verification status history
 model VerificationRecord {
-  id              String                  @id @default(uuid())
-  
-  versionId       String
-  version         EntityVersion           @relation(fields: [versionId], references: [id], onDelete: Cascade)
-  
-  status          VerificationStatusType
-  verifiedBy      String?
+  id String @id @default(uuid())
+
+  versionId String
+  version   EntityVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  status             VerificationStatusType
+  verifiedBy         String?
   verificationMethod String?
-  
-  notes           String?
-  evidenceUrl     String?
-  
-  verifiedAt      DateTime                @default(now())
-  expiresAt       DateTime?
-  
+
+  notes       String?
+  evidenceUrl String?
+
+  verifiedAt DateTime  @default(now())
+  expiresAt  DateTime?
+
   @@index([versionId])
   @@index([status])
   @@index([verifiedAt])
+}
+
+// ============================================================================
+// v2.0 MODELS - P0: Core Responsibility & Identification
+// ============================================================================
+
+/// ProductResponsibility - Answers "Who is RP for product X in country Y?"
+/// This is THE core model for marketplace integrations
+model ProductResponsibility {
+  id String @id @default(uuid())
+
+  // What product
+  productId String
+  product   ProductReference @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // Where (country scope)
+  countryCode String @db.VarChar(2) // ISO 3166-1 alpha-2
+
+  // Who is responsible
+  entityId String
+  entity   Entity @relation(fields: [entityId], references: [id])
+
+  // In what role
+  role RoleType
+
+  // Validity period
+  validFrom DateTime  @default(now())
+  validTo   DateTime? // Null = currently valid
+
+  // Source and confidence
+  sourceId   String
+  source     Source @relation(fields: [sourceId], references: [id])
+  confidence Int    @default(50) // 0-100
+
+  // Status
+  status ResponsibilityStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Unique: one entity per role per product per country (at a time)
+  @@unique([productId, countryCode, role, status])
+  @@index([productId])
+  @@index([entityId])
+  @@index([countryCode])
+  @@index([role])
+  @@index([status])
+}
+
+/// EntityIdentifier - VAT/EORI/DUNS lookup for dedup and external integration
+model EntityIdentifier {
+  id String @id @default(uuid())
+
+  entityId String
+  entity   Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  type        IdentifierType
+  value       String
+  countryCode String?        @db.VarChar(2)
+
+  sourceId String
+  source   Source @relation(fields: [sourceId], references: [id])
+
+  isPrimary Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Unique identifier value per type (global dedup)
+  @@unique([type, value])
+  @@index([entityId])
+  @@index([type])
+  @@index([value])
+}
+
+/// EntityNameVariant - Aliases, transliterations, language variants
+model EntityNameVariant {
+  id String @id @default(uuid())
+
+  entityId String
+  entity   Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  value    String
+  language String? @db.VarChar(5) // ISO 639-1 or BCP-47
+  script   String? // LATIN, CYRILLIC, HAN, etc.
+
+  sourceId String
+  source   Source @relation(fields: [sourceId], references: [id])
+
+  isPreferred Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([entityId])
+  @@index([value])
+}
+
+// ============================================================================
+// v2.0 P1: CLAIM + EVIDENCE LAYER - Granular Verification
+// ============================================================================
+
+/// Claim - A statement/assertion about data that can be verified
+/// This enables granular verification at attribute level rather than entity level
+model Claim {
+  id String @id @default(uuid())
+
+  subject       ClaimSubject   // What type of thing this claim is about
+  subjectId     String         // UUID of the subject (entity, brand, product, etc.)
+  attribute     String         // Which attribute (e.g., "name", "address", "vatId")
+  value         String         // The claimed value
+  assertionType AssertionType  @default(FACT) // Nature of the claim (legal clarity)
+
+  status      ClaimStatus @default(PROPOSED)
+  confidence  Int         @default(50) // 0-100 confidence score
+  priority    Int         @default(0) // For conflict resolution
+
+  sourceId String
+  source   Source @relation(fields: [sourceId], references: [id])
+
+  evidence Evidence[]
+
+  reviewedBy String?
+  reviewedAt DateTime?
+  reviewNotes String?
+
+  // Supersession chain
+  supersededById String?
+  supersededBy   Claim?  @relation("ClaimSupersession", fields: [supersededById], references: [id])
+  supersedes     Claim[] @relation("ClaimSupersession")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([subject, subjectId])
+  @@index([attribute])
+  @@index([status])
+  @@index([confidence])
+}
+
+/// Evidence - Supporting material for a Claim
+model Evidence {
+  id String @id @default(uuid())
+
+  claimId String
+  claim   Claim  @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  type        EvidenceType
+  url         String?             // For URL, FILE types
+  content     String?             // For TEXT_SNAPSHOT, or extracted content
+  contentHash String?             // SHA-256 hash for integrity
+  mimeType    String?             @db.VarChar(100)
+  fileSize    Int?
+
+  capturedAt  DateTime @default(now()) // When evidence was captured
+  expiresAt   DateTime?                 // Evidence validity expiry
+
+  isVerified  Boolean @default(false) // Has this evidence been verified?
+  verifiedBy  String?
+  verifiedAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([claimId])
+  @@index([type])
+}
+
+// ============================================================================
+// v2.0 P2: ADDRESS LAYER - First-class Address Entity
+// ============================================================================
+
+/// Address - Normalized postal address (can be shared or linked)
+model Address {
+  id String @id @default(uuid())
+
+  // Structured address fields
+  streetLine1  String
+  streetLine2  String?
+  city         String
+  postalCode   String?
+  region       String?   // State/Province/Region
+  countryCode  String    @db.VarChar(2) // ISO 3166-1 alpha-2
+
+  // Normalized for search
+  normalizedFull String @db.Text // Entire address normalized
+
+  // Type and linkage
+  addressType AddressType @default(REGISTERED)
+
+  // Link to Entity (nullable for shared addresses)
+  entityId String?
+  entity   Entity? @relation(fields: [entityId], references: [id], onDelete: SetNull)
+
+  // Source tracking
+  sourceId String?
+  source   Source? @relation(fields: [sourceId], references: [id])
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([entityId])
+  @@index([countryCode])
+  @@index([addressType])
+  @@index([normalizedFull])
+}
+
+// ============================================================================
+// v2.0 P3: CORPORATE GRAPH - Entity Relationships
+// ============================================================================
+
+/// EntityRelationship - Corporate structure and relationship mapping
+/// Enables tracking of parent/subsidiary, M&A, and representation agreements
+model EntityRelationship {
+  id String @id @default(uuid())
+
+  fromEntityId String
+  fromEntity   Entity @relation("RelationshipFrom", fields: [fromEntityId], references: [id], onDelete: Cascade)
+
+  toEntityId String
+  toEntity   Entity @relation("RelationshipTo", fields: [toEntityId], references: [id], onDelete: Cascade)
+
+  relationType EntityRelationType
+
+  // Temporal validity
+  validFrom DateTime @default(now())
+  validTo   DateTime?
+
+  // Source and confidence
+  sourceId   String?
+  confidence Int      @default(50)
+  notes      String?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fromEntityId])
+  @@index([toEntityId])
+  @@index([relationType])
+  @@index([isActive])
+}
+
+// ============================================================================
+// v2.0 P3: MULTI-TENANT API - API Client Management
+// ============================================================================
+
+/// ApiClient - API consumer with scoped access
+/// Enables multi-tenant access with different permission levels
+model ApiClient {
+  id String @id @default(uuid())
+
+  name           String
+  description    String?
+  contactEmail   String
+  organizationId String?  // Optional link to entity
+
+  // Authentication
+  apiKeyHash String  @unique // Hashed API key
+  apiKeyPrefix String @db.VarChar(8) // First 8 chars for identification
+
+  // Authorization
+  scopes    ApiClientScope[]
+  rateLimit Int              @default(1000) // Requests per hour
+
+  // Status
+  isActive    Boolean   @default(true)
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([apiKeyPrefix])
+  @@index([organizationId])
+  @@index([isActive])
 }
 
 // ============================================================================
@@ -586,21 +989,21 @@ model VerificationRecord {
 
 /// AuditLog - System-wide audit trail
 model AuditLog {
-  id          String    @id @default(uuid())
-  
-  action      String
-  entityType  String
-  entityId    String
-  
+  id String @id @default(uuid())
+
+  action     String
+  entityType String
+  entityId   String
+
   previousData Json?
   newData      Json?
-  
-  performedBy  String?
-  ipAddress    String?
-  userAgent    String?
-  
-  createdAt    DateTime @default(now())
-  
+
+  performedBy String?
+  ipAddress   String?
+  userAgent   String?
+
+  createdAt DateTime @default(now())
+
   @@index([entityType, entityId])
   @@index([action])
   @@index([performedBy])

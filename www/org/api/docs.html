@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>OpenGPSR API Documentation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Redoc Element -->
+    <div id="redoc-container"></div>
+
+    <!-- Redoc Script -->
+    <script src="https://cdn.jsdelivr.net/npm/redoc@2.0.0-rc.56/bundles/redoc.standalone.js"></script>
+
+    <!-- Embedded Spec to avoid CORS issues on file:// -->
+    <script>
+        const spec = {
+            "openapi": "3.0.0",
+            "info": {
+                "title": "OpenGPSR API",
+                "version": "1.0.0",
+                "description": "Public API for Accessing GPSR Entity Data",
+                "contact": {
+                    "name": "OpenGPSR",
+                    "email": "contact@opengpsr.org"
+                },
+                "license": {
+                    "name": "MIT",
+                    "url": "https://opensource.org/licenses/MIT"
+                }
+            },
+            "servers": [
+                {
+                    "url": "/api",
+                    "description": "API Gateway"
+                }
+            ],
+            "tags": [
+                {
+                    "name": "Public",
+                    "description": "Public read-only endpoints"
+                },
+                {
+                    "name": "Entities",
+                    "description": "Economic Operators management"
+                },
+                {
+                    "name": "Products",
+                    "description": "Product reference management"
+                }
+            ],
+            "paths": {
+                "/public/entities": {
+                    "get": {
+                        "tags": [
+                            "Public"
+                        ],
+                        "summary": "List Entities",
+                        "description": "Retrieve a paginated list of active entities with optional filtering.",
+                        "parameters": [
+                            {
+                                "name": "search",
+                                "in": "query",
+                                "description": "Search term for entity name",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            },
+                            {
+                                "name": "country",
+                                "in": "query",
+                                "description": "ISO 3166-1 alpha-2 country code",
+                                "schema": {
+                                    "type": "string",
+                                    "minLength": 2,
+                                    "maxLength": 2
+                                }
+                            },
+                            {
+                                "name": "role",
+                                "in": "query",
+                                "description": "Filter by GPSR Role",
+                                "schema": {
+                                    "$ref": "#/components/schemas/RoleType"
+                                }
+                            },
+                            {
+                                "name": "limit",
+                                "in": "query",
+                                "description": "Number of records to return (default 20, max 100)",
+                                "schema": {
+                                    "type": "integer",
+                                    "default": 20
+                                }
+                            },
+                            {
+                                "name": "offset",
+                                "in": "query",
+                                "description": "Number of records to skip",
+                                "schema": {
+                                    "type": "integer",
+                                    "default": 0
+                                }
+                            }
+                        ],
+                        "responses": {
+                            "200": {
+                                "description": "Successful operation",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/EntityListResponse"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "/public/entities/{id}": {
+                    "get": {
+                        "tags": [
+                            "Public"
+                        ],
+                        "summary": "Get Entity Details",
+                        "parameters": [
+                            {
+                                "name": "id",
+                                "in": "path",
+                                "required": true,
+                                "description": "Entity UUID",
+                                "schema": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                }
+                            }
+                        ],
+                        "responses": {
+                            "200": {
+                                "description": "Entity found",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/EntityDetailResponse"
+                                        }
+                                    }
+                                }
+                            },
+                            "404": {
+                                "description": "Entity not found"
+                            }
+                        }
+                    }
+                },
+                "/public/stats": {
+                    "get": {
+                        "tags": [
+                            "Public"
+                        ],
+                        "summary": "Get System Statistics",
+                        "responses": {
+                            "200": {
+                                "description": "System stats",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/StatsResponse"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "components": {
+                "schemas": {
+                    "RoleType": {
+                        "type": "string",
+                        "enum": [
+                            "MANUFACTURER",
+                            "IMPORTER",
+                            "DISTRIBUTOR",
+                            "RESPONSIBLE_PERSON",
+                            "FULFILLMENT_SERVICE"
+                        ]
+                    },
+                    "EntityListResponse": {
+                        "type": "object",
+                        "properties": {
+                            "success": {
+                                "type": "boolean"
+                            },
+                            "data": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/PublicEntitySummary"
+                                }
+                            },
+                            "pagination": {
+                                "$ref": "#/components/schemas/Pagination"
+                            }
+                        }
+                    },
+                    "EntityDetailResponse": {
+                        "type": "object",
+                        "properties": {
+                            "success": {
+                                "type": "boolean"
+                            },
+                            "data": {
+                                "$ref": "#/components/schemas/PublicEntityDetail"
+                            }
+                        }
+                    },
+                    "StatsResponse": {
+                        "type": "object",
+                        "properties": {
+                            "success": {
+                                "type": "boolean"
+                            },
+                            "data": {
+                                "type": "object",
+                                "properties": {
+                                    "totalEntities": {
+                                        "type": "integer"
+                                    },
+                                    "activeEntities": {
+                                        "type": "integer"
+                                    },
+                                    "totalSources": {
+                                        "type": "integer"
+                                    },
+                                    "topCountries": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "country": {
+                                                    "type": "string"
+                                                },
+                                                "count": {
+                                                    "type": "integer"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "PublicEntitySummary": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "format": "uuid"
+                            },
+                            "name": {
+                                "type": "string"
+                            },
+                            "country": {
+                                "type": "string"
+                            },
+                            "roles": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/PublicRole"
+                                }
+                            }
+                        }
+                    },
+                    "PublicEntityDetail": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/PublicEntitySummary"
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "address": {
+                                        "type": "string"
+                                    },
+                                    "city": {
+                                        "type": "string"
+                                    },
+                                    "website": {
+                                        "type": "string"
+                                    },
+                                    "phone": {
+                                        "type": "string"
+                                    },
+                                    "verificationStatus": {
+                                        "type": "string"
+                                    },
+                                    "lastUpdated": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    "PublicRole": {
+                        "type": "object",
+                        "properties": {
+                            "type": {
+                                "$ref": "#/components/schemas/RoleType"
+                            },
+                            "marketContext": {
+                                "type": "string",
+                                "nullable": true
+                            }
+                        }
+                    },
+                    "Pagination": {
+                        "type": "object",
+                        "properties": {
+                            "total": {
+                                "type": "integer"
+                            },
+                            "limit": {
+                                "type": "integer"
+                            },
+                            "offset": {
+                                "type": "integer"
+                            },
+                            "hasMore": {
+                                "type": "boolean"
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        Redoc.init(spec, {
+            scrollYOffset: 50
+        }, document.getElementById('redoc-container'));
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,7 @@
+RewriteEngine On
+RewriteBase /org/api/
+
+# Route everything in api/ to index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]

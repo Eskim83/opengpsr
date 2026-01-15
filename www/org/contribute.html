@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How to Contribute - OpenGPSR</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Specific styles for this page */
+        :root {
+            --success-color: #16a34a;
+            /* Green 600 */
+        }
+
+        /* Golden Rule */
+        .golden-rule {
+            border: 2px solid #0ea5e9;
+            /* Sky 500 */
+            padding: 30px;
+            border-radius: 8px;
+            background: #f0f9ff;
+            /* Sky 50 */
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        .golden-rule strong {
+            color: #0284c7;
+            /* Sky 600 */
+            font-size: 1.25rem;
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        h3 {
+            font-size: 1.15rem;
+            margin-top: 30px;
+            color: #334155;
+            font-weight: 600;
+        }
+
+        /* Steps */
+        .step-list {
+            counter-reset: step;
+            list-style: none;
+            padding: 0;
+            margin-top: 1rem;
+        }
+
+        .step-list li {
+            position: relative;
+            padding-left: 45px;
+            margin-bottom: 20px;
+        }
+
+        .step-list li::before {
+            counter-increment: step;
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #cbd5e1;
+            /* Slate 300 - consistent with style.css if possible, or use primary */
+            background: #334155;
+            /* Slate 700 */
+            color: #fff;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        /* Do's and Dont's */
+        .dos-donts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 25px;
+        }
+
+        @media (max-width: 600px) {
+            .dos-donts {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .col-do {
+            border-top: 4px solid var(--success-color);
+            padding-top: 15px;
+        }
+
+        .col-dont {
+            border-top: 4px solid #dc2626;
+            padding-top: 15px;
+        }
+
+        .col-title {
+            font-weight: 700;
+            display: block;
+            margin-bottom: 15px;
+            font-size: 0.95rem;
+        }
+
+        /* Code block */
+        .code-block {
+            background: #1e293b;
+            /* Slate 800 */
+            color: #e2e8f0;
+            /* Slate 200 */
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            overflow-x: auto;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-top: 15px;
+        }
+
+        /* Culture */
+        .coc-box {
+            background: #f8fafc;
+            /* Slate 50 */
+            padding: 25px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="wrapper">
+        <a href="index.html" class="nav-back">Back to Home</a>
+
+        <header>
+            <h1>How to Contribute</h1>
+            <p class="subtitle">Guide for data submitters and investigation developers.</p>
+        </header>
+
+        <main>
+            <div class="golden-rule">
+                <strong>OpenGPSR Golden Rule</strong>
+                "Better to add no data at all, than to add unverified data."<br>
+                Quality > Quantity.
+            </div>
+
+            <section>
+                <h2>1. How to submit new data?</h2>
+                <p>Priority is quality and source. We do not accept "bulk lists" without verification.</p>
+
+                <h3>Option A: Contact Form / Email (New)</h3>
+                <ul class="step-list">
+                    <li><strong>Send us a message:</strong> use the contact form on the home page.</li>
+                    <li><strong>Prepare entity data:</strong> name, country (ISO), role (e.g., Manufacturer / Importer),
+                        contact details, and source URL.</li>
+                    <li><strong>Submit:</strong> Our team will review the submission and add it to the database
+                        manually.</li>
+                </ul>
+
+                <h3>Option B: GitHub Issue (For technical users)</h3>
+                <p>
+                    If you prefer working via GitHub, submit data as an Issue.
+                    <strong>We do not require</strong> editing files or making Pull Requests with data.
+                    In the Issue, provide complete information + source URL.
+                </p>
+
+                <h3>Option C: API (For trusted integrations only — cautious)</h3>
+                <p>
+                    The project API is designed primarily for <strong>data retrieval</strong> (read).
+                    Adding/changing data via API may be introduced in stages and will be restricted
+                    (e.g., only for trusted integrations, with limits and additional verification requirements).
+                </p>
+            </section>
+
+            <section>
+                <h2>2. Submission Standard (Information Format)</h2>
+                <p>To facilitate verification, prepare the submission in the following format:</p>
+                <div class="code-block">
+                    Name: Example GmbH<br>
+                    Country: DE<br>
+                    Role: MANUFACTURER / IMPORTER / RESPONSIBLE_PERSON / AUTHORIZED_REP / DISTRIBUTOR /
+                    FULFILLMENT_PROVIDER<br>
+                    Contact details: (address / www / email / phone - if public)<br>
+                    Source: https://example.com/impressum<br>
+                    Source Type: OFFICIAL_REGISTRY / WEBSITE / PRODUCT_LABEL / PRIMARY_SOURCE / COMMUNITY / API_IMPORT /
+                    MANUAL_ENTRY<br>
+                    Notes: (optional) e.g., "Page contains separate contact for compliance"
+                </div>
+            </section>
+
+            <section>
+                <h2>3. What we look for, and what to avoid?</h2>
+                <div class="dos-donts">
+                    <div class="col-do">
+                        <span class="col-title" style="color:var(--success-color)">✅ DO ADD THIS:</span>
+                        <ul>
+                            <li>Official "Contact", "Imprint", "Legal", "Compliance", "Safety" pages.</li>
+                            <li>Data from public registries (when unambiguous and linkable).</li>
+                            <li>Data of non-EU manufacturers selling in the EU (along with the responsible person in the
+                                EU, if indicated).</li>
+                            <li>Typo corrections and gap filling (with source provided).</li>
+                        </ul>
+                    </div>
+                    <div class="col-dont">
+                        <span class="col-title" style="color:#dc2626">⛔ DO NOT ADD THIS:</span>
+                        <ul>
+                            <li>Private employee emails, unless listed as a public contact.</li>
+                            <li>Data that you cannot confirm with a link or source material.</li>
+                            <li>Lists of companies "from Excel" without sources and auditability.</li>
+                            <li>Opinions about companies or accusations (this is not a review site).</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2>4. How to report a correction (incorrect / outdated data)?</h2>
+                <p>If you notice an outdated address, a dead website, or incorrect contact details:</p>
+                <ol>
+                    <li><strong>Do not try to "delete" data</strong> — history is important.</li>
+                    <li><strong>Report a correction</strong> via the form (or Issue), providing new data.</li>
+                    <li><strong>Attach a source</strong> confirming the change (e.g., new contact page).</li>
+                    <li>
+                        If you don't have new data but can confirm the old data is outdated:
+                        report it and attach proof (e.g., "404 page", "domain expired").
+                        The record will be marked as <code>OUTDATED</code> / <code>HISTORICAL</code>.
+                    </li>
+                </ol>
+            </section>
+
+            <section>
+                <h2>5. Culture (Code of Conduct)</h2>
+                <div class="coc-box">
+                    <p>We are creating a professional tool. We expect:</p>
+                    <ul>
+                        <li><strong>Substance:</strong> we focus on data, sources, and verification.</li>
+                        <li><strong>Calmness:</strong> we fix errors without personal attacks.</li>
+                        <li><strong>Language:</strong> the official language of code and API is English; documentation
+                            may have language versions.</li>
+                    </ul>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2026 OpenGPSR Project. <br>
+                Contribution guidelines v1.1.</p>
+        </footer>
+    </div>
+
+</body>
+
+</html>

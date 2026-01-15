@@ -5,4 +5,11 @@ export * from './auditService';
 export * from './brandService';
 export * from './productService';
 export * from './contactService';
-
+// v2.0 P0 services
+export * from './productResponsibilityService';
+export * from './entityIdentifierService';
+// v2.0 P1/P2/P3 services
+export * from './claimService';
+export * from './addressService';
+export * from './entityRelationshipService';
+export * from './apiClientService';

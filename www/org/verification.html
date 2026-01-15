@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verification Policy - OpenGPSR</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Specific styles for this page */
+        /* Status Colors */
+        :root {
+            --status-source-bg: #dcfce7;
+            /* Green 100 */
+            --status-source-text: #166534;
+            /* Green 800 */
+            --status-community-bg: #dbeafe;
+            /* Blue 100 */
+            --status-community-text: #1e40af;
+            /* Blue 800 */
+            --status-unverified-bg: #fee2e2;
+            /* Red 100 */
+            --status-unverified-text: #991b1b;
+            /* Red 800 */
+            --status-outdated-bg: #f1f5f9;
+            /* Slate 100 */
+            --status-outdated-text: #475569;
+            /* Slate 600 */
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 0.35em 0.8em;
+            font-size: 0.75em;
+            font-weight: 700;
+            line-height: 1;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 9999px;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-source {
+            background-color: var(--status-source-bg);
+            color: var(--status-source-text);
+            border: 1px solid #bbf7d0;
+        }
+
+        .badge-community {
+            background-color: var(--status-community-bg);
+            color: var(--status-community-text);
+            border: 1px solid #bfdbfe;
+        }
+
+        .badge-unverified {
+            background-color: var(--status-unverified-bg);
+            color: var(--status-unverified-text);
+            border: 1px solid #fecaca;
+        }
+
+        .badge-outdated {
+            background-color: var(--status-outdated-bg);
+            color: var(--status-outdated-text);
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Table Style */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 25px;
+            margin-bottom: 35px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 16px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        th {
+            background-color: #f8fafc;
+            font-weight: 600;
+            color: #475569;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .info-box {
+            background-color: #eff6ff;
+            /* Blue 50 */
+            border-left: 4px solid #3b82f6;
+            /* Blue 500 */
+            padding: 20px;
+            margin: 25px 0;
+            font-size: 0.95rem;
+            border-radius: 0 4px 4px 0;
+            color: #1e3a8a;
+        }
+
+        .required-fields {
+            padding-left: 1.2rem;
+            margin-bottom: 30px;
+        }
+
+        .required-fields li {
+            margin-bottom: 8px;
+        }
+
+        code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9em;
+            color: #475569;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="legal-banner">
+        ⚠️ TECHNICAL DOCUMENTATION: Verification status is informational metadata, not a legal guarantee.
+    </div>
+
+    <div class="wrapper">
+        <a href="index.html" class="nav-back">Back to Home</a>
+
+        <header>
+            <h1>Verification Policy</h1>
+            <p class="subtitle">Trust model and lifecycle of records and their versions in OpenGPSR.</p>
+        </header>
+
+        <main>
+            <section>
+                <div class="info-box">
+                    <strong>General Principle:</strong> OpenGPSR does not "create truth". OpenGPSR stores versioned
+                    information along with source and verification history.
+                    Verification status serves to assess record usage risk, not to certify the entity.
+                </div>
+            </section>
+
+            <section id="statuses">
+                <h2>1. Verification Statuses (Taxonomy)</h2>
+                <p>
+                    Verification status describes the <strong>current assessment</strong> of data credibility for a
+                    given record version.
+                    The system uses taxonomy consistent with <code>VerificationStatusType</code>.
+                </p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 28%;">Status</th>
+                            <th style="width: 15%;">Trust Level</th>
+                            <th>Meaning</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge badge-source">PRIMARY_CONFIRMED</span></td>
+                            <td>High</td>
+                            <td>Data confirmed by a primary source (e.g., official entity website, official document
+                                published by the entity). Source is indicated and verifiable.</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-community">COMMUNITY_CONFIRMED</span></td>
+                            <td>Medium</td>
+                            <td>Data confirmed by community (e.g., independent confirmations + verifiable source trace),
+                                but without strong primary confirmation.</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-unverified">UNVERIFIED</span></td>
+                            <td>Low</td>
+                            <td>Default status for new submissions or versions that have not passed review yet. Data may
+                                contain errors or be incomplete.</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-outdated">OUTDATED</span></td>
+                            <td>None</td>
+                            <td>Data marked as outdated (e.g., 404 page, expired domain, email bounce). Record may
+                                remain visible as a historical trace but should not be used for compliance.</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-outdated">HISTORICAL</span></td>
+                            <td>Low</td>
+                            <td>Historical data or requiring re-verification (e.g., no current source, old document,
+                                temporal discrepancies). May be "true", but risk is higher.</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-outdated">DISPUTED</span></td>
+                            <td>Low</td>
+                            <td>Data disputed or conflicting (different sources provide different information). Record
+                                requires resolution or additional evidence.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <p style="color:#64748b; font-size:0.95rem;">
+                    Note: Status is assigned to a <strong>specific version</strong> of data. Changing data creates a new
+                    version, and verifications constitute a separate event history.
+                </p>
+            </section>
+
+            <section id="process">
+                <h2>2. Verification Process</h2>
+                <p>
+                    Verification is a controlled process. Submissions are accepted mainly via form or GitHub Issue, and
+                    then evaluated
+                    based on the Source Policy. The API is designed primarily for data reading.
+                </p>
+
+                <h3>Requirements for <span class="badge badge-source">PRIMARY_CONFIRMED</span></h3>
+                <ul class="required-fields">
+                    <li>Indication of a direct source (URL or document), preferably on a domain owned by the entity.
+                    </li>
+                    <li>Unambiguity: source must explicitly state the data we publish (no guesswork).</li>
+                    <li>Manual verification by maintainers / trusted verifiers or clearly documented automated method
+                        (if applied).</li>
+                </ul>
+
+                <h3>Transition to <span class="badge badge-community">COMMUNITY_CONFIRMED</span></h3>
+                <p>
+                    Can occur when there is a credible trace but primary confirmation is lacking, and data has been
+                    confirmed repeatably
+                    (e.g., by independent reports and consistent secondary sources). In practice, treat this as "useful,
+                    but with caution" level.
+                </p>
+
+                <h3>Status Degradation</h3>
+                <p>
+                    Status can be lowered or set to <span class="badge badge-outdated">OUTDATED</span> / <span
+                        class="badge badge-outdated">HISTORICAL</span> / <span
+                        class="badge badge-outdated">DISPUTED</span>,
+                    if evidence of obsolescence, contradiction, or error appears (e.g., new source, report with proof).
+                    We do not promise automatic thresholds — decision depends on evidence quality and context.
+                </p>
+            </section>
+
+            <section id="metadata">
+                <h2>3. Verification Metadata (Audit Trail)</h2>
+                <p>
+                    Review status label alone is not enough. To ensure transparency, every verification is logged as a
+                    separate entry
+                    linked to a specific data version (e.g., <code>VerificationRecord</code>):
+                </p>
+
+                <ul class="required-fields">
+                    <li><code>status</code>: value from <code>VerificationStatusType</code>.</li>
+                    <li><code>verifiedAt</code>: verification date (ISO 8601).</li>
+                    <li><code>verifiedBy</code>: verifier identifier (user/system) – if available.</li>
+                    <li><code>verificationMethod</code>: method (e.g., manual_check, automated_check, user_report).</li>
+                    <li><code>evidenceUrl</code>: link to proof (evidence), if applicable.</li>
+                    <li><code>notes</code>: explanatory note (optional).</li>
+                    <li><code>expiresAt</code>: if verification has an "expiration date" (optional).</li>
+                </ul>
+
+                <div class="info-box">
+                    <strong>Important:</strong> Verification concerns a <em>moment in time</em>. The fact that a source
+                    was correct on verification day does not mean
+                    it will be correct in the future. That's why dates, evidence, and re-evaluation capability are
+                    essential.
+                </div>
+            </section>
+
+            <section id="disclaimer">
+                <h2>4. Disclaimer</h2>
+                <p style="font-size: 0.9em; color: #64748b;">
+                    Status <strong>PRIMARY_CONFIRMED</strong> only means that at the time of verification, the indicated
+                    source contained data consistent with the record.
+                    It does not mean that the entity fulfills legal obligations, nor that the contact is actively
+                    serviced.
+                    The database user has an obligation of due diligence in their use case.
+                </p>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2026 OpenGPSR Project. Technical Documentation v0.2.</p>
+        </footer>
+    </div>
+
+</body>
+
+</html>

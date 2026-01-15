@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Context & Motivation - OpenGPSR</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+    <div class="wrapper">
+        <a href="index.html" class="nav-back">Back to Home</a>
+
+        <header>
+            <h1>Why OpenGPSR?</h1>
+            <p class="subtitle">
+                Analysis of the operational gap created after the entry into force of Regulation (EU) 2023/988.
+            </p>
+        </header>
+
+        <main>
+            <section>
+                <h2>1. New Obligations (Regulation)</h2>
+                <div class="text-block">
+                    The GPSR (General Product Safety Regulation) introduces a requirement
+                    to provide consumers in the EU with clear identification and contact details
+                    of the manufacturer and — if the manufacturer is not established in the EU —
+                    the appointed Responsible Person within the Union.
+                </div>
+                <div class="text-block">
+                    This obligation applies in particular to online sales
+                    and must be fulfilled <strong>at the level of each product offer</strong>.
+                </div>
+            </section>
+
+            <section>
+                <h2>2. Operational Problem (Lack of Infrastructure)</h2>
+                <div class="text-block">
+                    The regulation creates a clear legal requirement but does not provide
+                    any common technical mechanism for its implementation.
+                    There is no central, public registry of Responsible Persons
+                    within the meaning of GPSR.
+                </div>
+
+                <div class="gap-analysis">
+                    <span class="gap-title">Operational Gap Analysis</span>
+                    In practice, thousands of sellers and e-commerce system integrators
+                    are forced to repeatedly manually search for the same data
+                    for the same brands and manufacturers. This leads to duplication of work,
+                    inconsistent data, and compliance errors.
+                </div>
+            </section>
+
+            <div class="logic-chain">
+                Legal Requirement (GPSR)<br>
+                <span class="arrow">⬇</span><br>
+                Lack of Common Data Infrastructure<br>
+                <span class="arrow">⬇</span><br>
+                Distributed, Manual Information Gathering<br>
+                <span class="arrow">⬇</span><br>
+                <strong>Operational Gap (OpenGPSR's Focus Area)</strong>
+            </div>
+
+            <section>
+                <h2>3. Role of OpenGPSR</h2>
+                <div class="text-block">
+                    OpenGPSR was created as a grassroots technical initiative
+                    aimed at filling this infrastructural gap.
+                    The project acts as a middleware layer
+                    between distributed data sources and sales systems.
+                </div>
+                <div class="text-block">
+                    Data is aggregated, versioned, and marked with a source of origin,
+                    allowing for its automated use in compliance processes
+                    without the need to manually determine the Responsible Person every time.
+                </div>
+            </section>
+
+            <section>
+                <h2>4. What OpenGPSR Does NOT Do</h2>
+                <div class="text-block">
+                    OpenGPSR performs no certification or advisory functions.
+                    The project provides only standardized technical data
+                    in a format enabling system integration.
+                </div>
+                <ul>
+                    <li>It is not a supervisory authority or legal institution.</li>
+                    <li>It does not confirm product compliance with regulations.</li>
+                    <li>It does not replace the seller's obligations under GPSR.</li>
+                </ul>
+            </section>
+        </main>
+
+        <footer>
+            <p>
+                &copy; 2026 OpenGPSR Project<br>
+                Non-profit technical project.
+            </p>
+        </footer>
+    </div>
+
+</body>
+
+</html>

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenGPSR - Open Reference Database (v1.0)</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        async function handleContactSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const statusDiv = document.getElementById('form-status');
+            const submitBtn = document.getElementById('submit-btn');
+
+            const formData = {
+                name: form.name.value,
+                email: form.email.value,
+                subject: form.subject.value,
+                message: form.message.value
+            };
+
+            try {
+                submitBtn.disabled = true;
+                submitBtn.innerText = 'Sending...';
+                statusDiv.className = 'status-message';
+                statusDiv.innerText = '';
+                statusDiv.style.display = 'none';
+
+                // Post to the local PHP handler (independent of main API)
+                const response = await fetch('src/send-email.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    statusDiv.className = 'status-message success';
+                    statusDiv.innerText = result.message || 'Message sent successfully!';
+                    statusDiv.style.display = 'block';
+                    form.reset();
+                } else {
+                    const errorMsg = result.errors
+                        ? Object.values(result.errors).flat().join(', ')
+                        : (result.message || 'Failed to send message');
+                    throw new Error(errorMsg);
+                }
+            } catch (error) {
+                statusDiv.className = 'status-message error';
+                statusDiv.innerText = 'Error: ' + error.message;
+                statusDiv.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Send Message';
+            }
+        }
+    </script>
+    <style>
+        .status-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .status-message.success {
+            background-color: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .status-message.error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="legal-banner">
+        ⚠️ CAUTION: OpenGPSR is not an official EU registry. Data is informational and does not replace due diligence.
+    </div>
+
+    <div class="wrapper">
+        <header>
+            <h1>OpenGPSR</h1>
+            <p class="subtitle">Open reference database of economic operators and contact points for GPSR (EU 2023/988)
+            </p>
+            <div class="meta-info">
+                <span>Status: <strong>v1.0</strong></span>
+                |
+                <a href="https://github.com/Eskim83/opengpsr">GitHub</a>
+            </div>
+
+            <nav class="site-nav" aria-label="Project Documentation">
+                <p class="nav-title">Project Documentation</p>
+                <ul>
+                    <li><a href="context.html">Context & Motivation</a></li>
+                    <li><a href="governance.html">Governance Model</a></li>
+                    <li><a href="verification.html">Verification Policy</a></li>
+                    <li><a href="sources.html">Source Policy</a></li>
+                    <li><a href="privacy.html">Privacy Policy</a></li>
+                    <li><a href="contribute.html">Contribution Guide</a></li>
+                    <li><a href="terms.html">Terms of Use</a></li>
+                    <li><a href="api/docs.html"><strong>API Documentation</strong></a></li>
+                </ul>
+            </nav>
+        </header>
+
+        <main>
+            <section id="about">
+                <h2>1. What is OpenGPSR?</h2>
+                <p>
+                    OpenGPSR is a community-driven database aggregating information about economic operators
+                    and public contact points in the context of Regulation (EU) 2023/988 (GPSR – General Product Safety
+                    Regulation).
+                </p>
+                <p>
+                    The project serves as a reference point for sellers, distributors, and e-commerce system integrators
+                    who need manufacturer identification and contact data, as well as the Responsible Person in the EU
+                    (if applicable).
+                    Each record is versioned, linked to a source, and maintains an informational verification status.
+                </p>
+                <p>
+                    <small>Note: OpenGPSR does not interpret regulations and does not ensure legal compliance — it
+                        provides standardized technical data for integration.</small>
+                </p>
+            </section>
+
+            <section id="antigoals">
+                <h2>2. What OpenGPSR is NOT</h2>
+                <div class="anti-goals">
+                    <p>To avoid operational and legal misconceptions, please assume that OpenGPSR:</p>
+                    <ul>
+                        <li><strong>Is NOT an official EU or national registry</strong> – it has no official status or
+                            authority authorization.</li>
+                        <li><strong>Does NOT guarantee completeness or accuracy</strong> – data may be incomplete or
+                            outdated.</li>
+                        <li><strong>Does NOT ensure legal compliance</strong> – using this data does not exempt you from
+                            verification.</li>
+                        <li><strong>Is NOT legal advice</strong> – it is a technical tool, not a legal interpretation.
+                        </li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="license">
+                <h2>3. License & Usage</h2>
+                <div class="license-grid">
+                    <div class="license-box">
+                        <h3>Data (Public View)</h3>
+                        <p><strong>License: CC BY 4.0</strong></p>
+                        <p>You are free to copy, modify, and use commercially.</p>
+                        <p><em>Requirement:</em> Attribution (OpenGPSR).</p>
+                        <p><em>Disclaimer:</em> Data provided "AS IS", without warranty.</p>
+                        <p><small>The license does not waive legal obligations (e.g., GDPR) depending on data
+                                usage.</small></p>
+                    </div>
+                    <div class="license-box">
+                        <h3>Code / Schemas</h3>
+                        <p><strong>License: MIT License</strong></p>
+                        <p>The software is open source. You can modify the code and run your own instances.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="faq">
+                <h2>4. FAQ</h2>
+
+                <details>
+                    <summary>Is OpenGPSR an official GPSR registry?</summary>
+                    <div class="faq-answer">No. OpenGPSR is a private open-source initiative. It is not an official
+                        government registry.</div>
+                </details>
+
+                <details>
+                    <summary>Is GPSR a company registry?</summary>
+                    <div class="faq-answer">No. GPSR is a regulation. OpenGPSR is a contact database to help automate
+                        processes.</div>
+                </details>
+
+                <details>
+                    <summary>Where does the data come from?</summary>
+                    <div class="faq-answer">From public sources (entity websites, documents, registries) and community
+                        submissions, which must have a verifiable source.</div>
+                </details>
+
+                <details>
+                    <summary>Is the data always up to date?</summary>
+                    <div class="faq-answer">There is no such guarantee. Check the verification status and date. Data may
+                        be marked as OUTDATED / HISTORICAL / DISPUTED.</div>
+                </details>
+
+                <details>
+                    <summary>Who is responsible for data usage?</summary>
+                    <div class="faq-answer">The end user. OpenGPSR is an informational tool, without warranty.</div>
+                </details>
+
+                <details>
+                    <summary>Why isn't all data public?</summary>
+                    <div class="faq-answer">Some data may be insufficiently verified or restricted for safety/privacy
+                        reasons. Verification statuses are informational metadata.</div>
+                </details>
+            </section>
+
+            <section id="manifesto">
+                <h2>5. Project Manifesto</h2>
+                <ul class="manifesto-list">
+                    <li><strong>Data as a common good:</strong> Safety information without paywalls.</li>
+                    <li><strong>Technology Neutrality:</strong> Open formats (JSON, CSV).</li>
+                    <li><strong>Source Transparency:</strong> Every record points to its source and history.</li>
+                    <li><strong>Distributed Responsibility:</strong> We encourage corrections based on evidence.</li>
+                    <li><strong>Context Primacy:</strong> Roles are contextual (Manufacturer / Importer / Responsible
+                        Person etc.).</li>
+                </ul>
+            </section>
+
+            <section id="roadmap">
+                <h2>6. Roadmap v1.0</h2>
+                <p>Priorities for the near future:</p>
+                <div class="roadmap-item"><input type="checkbox" checked disabled> Project Homepage (you are here)</div>
+                <div class="roadmap-item"><input type="checkbox" disabled> Public search (Web) for reference data</div>
+                <div class="roadmap-item"><input type="checkbox" checked disabled> API Schema / Contract publication
+                    (read-first)</div>
+                <div class="roadmap-item"><input type="checkbox" disabled> "Report Bug/Correction" mechanism (form +
+                    verification queue)</div>
+                <div class="roadmap-item"><input type="checkbox" disabled> Validation and verification of initial
+                    records</div>
+                <div class="roadmap-item"><input type="checkbox" disabled> Data dump publication</div>
+            </section>
+
+            <section id="contact-section">
+                <h2>7. Contact Us</h2>
+                <p>Have questions about the API, integration, or want to report a general issue? Use the form below.</p>
+
+                <form onsubmit="handleContactSubmit(event)">
+                    <div class="form-group">
+                        <label for="name">Your Name *</label>
+                        <input type="text" id="name" name="name" placeholder="John Doe" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">E-mail *</label>
+                        <input type="email" id="email" name="email" placeholder="john@example.com" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="subject">Subject *</label>
+                        <input type="text" id="subject" name="subject" placeholder="Integration Question..." required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="message">Message *</label>
+                        <textarea id="message" name="message" rows="5" placeholder="How can we help?" required
+                            minlength="10"></textarea>
+                    </div>
+
+                    <button type="submit" id="submit-btn" class="primary-btn">Send Message</button>
+                    <div id="form-status" class="status-message"></div>
+                </form>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2026 OpenGPSR Project. Licensed under MIT & CC BY 4.0.<br>
+                Community project, not affiliated with EU institutions.</p>
+        </footer>
+    </div>
+</body>
+
+</html>
