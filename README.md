@@ -22,6 +22,15 @@ This system provides **informational data only**. It does not:
 - Replace official registries
 - Constitute legal advice
 
+## 🌐 Public Website
+
+The project has a public informational website available at:
+
+- **Homepage**: [opengpsr.org](https://opengpsr.org/) - Project overview, FAQ, governance
+- **API Documentation**: [opengpsr.org/api/docs.html](https://opengpsr.org/api/docs.html) - Interactive OpenAPI docs
+
+Website source code is located in `www/org/` directory.
+
 ## Architecture
 
 ```
